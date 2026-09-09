@@ -1,0 +1,101 @@
+PFMEA AI ASSIST — PIPELINE OVERVIEW
+=====================================
+(Sample working document — describes models used and step-by-step flow)
+
+
+1. MODELS USED
+---------------
+
+a) Generation + Comparison Model
+   - Deployment: gpt-5
+   - API version: 2025-01-01-preview
+   - Reasoning effort: minimal
+   - Max tokens: 32096
+   - Used for: reading the retrieved AIAG-VDA handbook content, drafting the
+     Failure Mode / Effect / Cause / Severity / Detection / Prevention for each
+     process step, AND comparing that draft against the plant's real data to
+     produce the Suggestion section.
+   - Same model is used for both generation and comparison (see reasoning notes
+     from our discussion — one consistent reasoning model, not split across
+     two different models, since both tasks need the same level of judgment
+     and the cost difference at our volume is negligible).
+
+b) Embedding Model
+   - Deployment: text-embedding-ada-002
+   - API version: 2023-05-15
+   - Used for: embedding the AIAG-VDA handbook PDF (chunked) so it can be
+     retrieved as context (RAG) when the generation step runs.
+
+c) (Optional, lightweight use only)
+   - Deployment: gpt-4o-mini
+   - Used for: any quick pre-processing step, e.g. summarizing a long plant
+     defect log before handing it to gpt-5. Not used for FMEA generation or
+     comparison itself.
+
+
+2. PIPELINE STEPS
+------------------
+
+STEP 1 — User uploads Excel
+   The user uploads their plant's own FMEA/process data as an Excel file.
+
+STEP 2 — User chooses which columns to compare
+   The user selects which column(s) in their sheet represent Process Step,
+   Failure Mode, Cause, Severity, Occurrence, Detection, etc. This tells the
+   system how to read their specific file format (since every plant's Excel
+   layout may differ slightly).
+
+STEP 3 — LLM generates using prompt + RAG context
+   For each process step in the uploaded sheet, the system:
+     - retrieves the relevant chunks from the embedded AIAG-VDA handbook
+       (Severity/Occurrence/Detection tables, method guidance)
+     - sends the process step + retrieved chunks + prompt to gpt-5
+     - gpt-5 drafts a Failure Mode, Effect, Cause, Severity, Detection Method,
+       and Prevention Control for that step
+
+STEP 4 — Model performs comparison
+   gpt-5 is called again (or in the same reasoning pass) with:
+     - its own generated draft
+     - the plant's real recorded value for that same field (if the plant
+       sheet had one)
+   It compares the two and produces a judgment: agree / disagree, and why.
+
+STEP 5 — New "Suggestion" section is created
+   A new group of columns is added to the output sheet, alongside the
+   original plant columns, showing what the model recommends:
+
+     Suggestion
+     -----------------------------------------------------------
+     | Severity Suggestion | Detection Suggestion | Prevention Suggestion |
+     -----------------------------------------------------------
+     |  e.g. "8 (vs plant's 5) - connector failure is total loss  |
+     |   of function per AIAG-VDA table, recommend review"        |
+     -----------------------------------------------------------
+     |  e.g. "Add camera-based presence check - current visual    |
+     |   check only catches ~50% of cases"                        |
+     -----------------------------------------------------------
+     |  e.g. "Add poka-yoke fixture that only accepts correct-    |
+     |   side part - prevents the error at the source"            |
+     -----------------------------------------------------------
+
+   Each suggestion cell contains BOTH the recommended value AND a short
+   reason, so the plant engineer can see why the model is suggesting a
+   change, not just a bare number.
+
+
+3. OUTPUT STRUCTURE (summary)
+------------------------------
+
+   [ Plant's Original Columns ]  |  [ AI Suggestion Columns ]
+   Process Step                  |  Severity Suggestion
+   Failure Mode                  |  Detection Suggestion
+   Effect                        |  Prevention Suggestion
+   Severity (plant's real value) |
+   Cause                         |
+   Occurrence (plant's real)     |
+   Detection (plant's real)      |
+
+   The plant's original data always stays untouched on the left side of the
+   sheet. The AI's suggestions are added as new columns on the right, never
+   overwriting the plant's real recorded values — so engineers can review
+   and accept/reject each suggestion individually.
