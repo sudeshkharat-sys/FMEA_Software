@@ -185,14 +185,15 @@ def add_task(t: NewTask, x_user_id: Optional[int] = Header(None)):
     if t.priority not in PRIORITIES:
         raise HTTPException(422, "Bad priority")
     ts = now()
+    title_en, ok1 = ai.to_english(t.title)
+    remarks_en, ok2 = ai.to_english(t.remarks)
     with conn() as c:
         employee_in_team(c, t.employee_id, u["team_id"])
         cur = c.execute(
             """INSERT INTO tasks(employee_id,title,title_orig,priority,deadline,remarks,remarks_orig,created_at,updated_at)
                VALUES(?,?,?,?,?,?,?,?,?)""",
-            (t.employee_id, ai.to_english(t.title), t.title, t.priority, t.deadline or None,
-             ai.to_english(t.remarks), t.remarks, ts, ts))
-    return {"id": cur.lastrowid}
+            (t.employee_id, title_en, t.title, t.priority, t.deadline or None, remarks_en, t.remarks, ts, ts))
+    return {"id": cur.lastrowid, "translated": ok1 and ok2}
 
 
 class TaskPatch(BaseModel):
@@ -226,13 +227,15 @@ def patch_task(task_id: int, p: TaskPatch, x_user_id: Optional[int] = Header(Non
             raise HTTPException(422, "Bad status")
         if changes.get("priority") and changes["priority"] not in PRIORITIES:
             raise HTTPException(422, "Bad priority")
-        sets, vals = [], []
+        sets, vals, translated = [], [], True
         for k, v in changes.items():
             if k in TEXT_FIELDS:
                 if k == "title" and not (v or "").strip():
                     raise HTTPException(422, "Title required")
+                en, ok = ai.to_english(v)
+                translated = translated and ok
                 sets += [f"{k}=?", f"{k}_orig=?"]
-                vals += [ai.to_english(v), v]
+                vals += [en, v]
             else:
                 sets.append(f"{k}=?")
                 vals.append(v or None if k == "deadline" else v)
@@ -240,7 +243,7 @@ def patch_task(task_id: int, p: TaskPatch, x_user_id: Optional[int] = Header(Non
             sets.append("progress=?"); vals.append(100)
         if sets:
             c.execute(f"UPDATE tasks SET {','.join(sets)}, updated_at=? WHERE id=?", vals + [now(), task_id])
-    return {"ok": True}
+    return {"ok": True, "translated": translated}
 
 
 def _facts_and_fallback(c, people, today):

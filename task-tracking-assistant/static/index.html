@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lakshya · AI Task Tracker</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23111'/%3E%3Cg fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='16' cy='16' r='9'/%3E%3Ccircle cx='16' cy='16' r='4'/%3E%3Cpath d='M16 16L25 7M20.5 6.5H25.5V11.5'/%3E%3C/g%3E%3C/svg%3E">
+<title>TaskFlow</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141414'/%3E%3Ctext x='16' y='25' font-family='Impact,Arial Narrow,sans-serif' font-size='26' font-weight='900' text-anchor='middle' fill='%23e50914'%3ET%3C/text%3E%3C/svg%3E">
 <script>
   // theme: saved choice, else system preference
   (function () { let t; try { t = localStorage.getItem("theme"); } catch (e) {}
@@ -25,8 +25,9 @@
 
   /* header */
   header { background:var(--card); border-bottom:1px solid var(--line); padding:10px 24px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .logo { font-weight:700; font-size:17px; letter-spacing:-.03em; display:flex; align-items:center; gap:9px; margin-right:auto; }
-  .logo .mk { color:var(--ink); display:grid; } .logo span:last-child { display:flex; flex-direction:column; line-height:1.1; } .logo small { font-size:10px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); margin-top:2px; }
+  .logo, .wordmark { font-family:Impact,"Haettenschweiler","Arial Narrow Bold","Franklin Gothic Medium","Arial Narrow",sans-serif; font-weight:900; text-transform:uppercase; color:#e50914; line-height:1; text-shadow:0 1px 0 rgba(0,0,0,.25); }
+  .logo { font-size:28px; letter-spacing:.02em; margin-right:auto; }
+  .wordmark { font-size:34px; letter-spacing:.02em; margin-bottom:18px; }
   .pill { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mut); }
   .pill select, .btn { border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:7px 11px; }
   .pill select { color:var(--txt); font-weight:500; max-width:190px; }
@@ -99,6 +100,8 @@
   .prog { display:flex; align-items:center; gap:8px; padding:8px; } .prog input[type=range] { flex:1; min-width:70px; padding:0; } .prog span { width:38px; text-align:right; font-weight:600; font-size:12px; color:var(--mut); }
   tr.add td { background:var(--raise); border-top:1px solid var(--line2); }
   tr.done td { opacity:.6; }
+  .viewnote { background:var(--fill); border:1px solid var(--line); border-radius:10px; padding:8px 14px; margin-bottom:12px; color:var(--mut); font-size:13px; }
+  .viewnote .link { margin-left:8px; padding:0; }
   .hint { color:var(--faint); font-size:12px; margin:12px 4px; }
   .iconbtn { border:0; background:transparent; font-size:15px; padding:6px 8px; border-radius:8px; color:var(--mut); } .iconbtn:hover { background:var(--fill); color:var(--txt); }
   .empty { padding:40px; text-align:center; color:var(--mut); }
@@ -126,8 +129,7 @@
   /* setup */
   .setup { position:fixed; inset:0; z-index:40; background:var(--bg); display:grid; place-items:center; padding:24px; overflow:auto; }
   .panel { background:var(--card); border:1px solid var(--line); border-radius:24px; padding:32px; width:100%; max-width:620px; box-shadow:var(--shadow); }
-  .panel .mark { color:var(--ink); margin-bottom:18px; line-height:0; }
-  .panel h1 { margin:0 0 6px; font-size:26px; } .panel p { margin:0 0 22px; color:var(--mut); }
+    .panel h1 { margin:0 0 6px; font-size:26px; } .panel p { margin:0 0 22px; color:var(--mut); }
   .field { display:flex; flex-direction:column; gap:5px; margin-bottom:12px; } .field label { font-size:12px; font-weight:600; color:var(--mut); }
   .field input, .row input { border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:10px 12px; width:100%; }
   .field input:focus, .row input:focus, .addmember input:focus { outline:2px solid var(--ink); outline-offset:-1px; }
@@ -141,7 +143,7 @@
 </head>
 <body>
 <header id="hdr" style="display:none">
-  <div class="logo"><span class="mk"><svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="9" fill="currentColor"/><g fill="none" stroke="var(--on-ink)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="9"/><circle cx="16" cy="16" r="4"/><path d="M16 16 L25 7"/><path d="M20.5 6.5 H25.5 V11.5"/></g></svg></span><span>Lakshya<small>AI Task Tracker</small></span></div>
+  <div class="logo">TASKFLOW</div>
   <label class="pill">Team <select id="team"></select></label>
   <label class="pill">Viewing as <select id="user"></select></label>
   <div class="menuwrap">
@@ -169,6 +171,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let cfg, me, team, tab = "overview";
 let lang = "en";   // English is always the default; the Translate button changes it for this session
+function setLang(l) { lang = l; $("#transLabel").textContent = cfg.languages[l]; document.querySelectorAll("#transMenu button").forEach(b => b.classList.toggle("on", b.dataset.l === l)); }
 
 /* Apple-15-style faint colours, one per member (never white / black / gray). [pastel, deeper accent] */
 const PALETTE = [["#f4cfd8","#c97a8e"],["#f3e7b1","#b89c2e"],["#d2e2cb","#6f9a63"],["#cbdeed","#5e8db7"],["#dcd4f0","#8a78c2"],
@@ -195,11 +198,10 @@ async function loadConfig() { cfg = await (await fetch("/api/config")).json(); }
 async function init() {
   await loadConfig();
   $("#transMenu").innerHTML = Object.entries(cfg.languages).map(([k, v]) => `<button data-l="${k}">${v}</button>`).join("");
-  const markLang = () => { $("#transLabel").textContent = cfg.languages[lang]; document.querySelectorAll("#transMenu button").forEach(b => b.classList.toggle("on", b.dataset.l === lang)); };
-  markLang();
+  setLang(lang);
   $("#transBtn").onclick = e => { e.stopPropagation(); $("#transMenu").classList.toggle("open"); };
   document.addEventListener("click", () => $("#transMenu").classList.remove("open"));
-  document.querySelectorAll("#transMenu button").forEach(b => b.onclick = () => { lang = b.dataset.l; markLang(); render(); });
+  document.querySelectorAll("#transMenu button").forEach(b => b.onclick = () => { setLang(b.dataset.l); render(); });
   $("#team").onchange = e => selectTeam(+e.target.value);
   $("#user").onchange = e => { me = team.members.find(u => u.id == e.target.value); localStorage.setItem("uid", me.id); tab = me.role === "manager" ? "overview" : String(me.id); render(); };
   $("#download").onclick = () => location.href = `/api/report?period=${$("#period").value}&user=${me.id}`;
@@ -229,7 +231,7 @@ function selectTeam(id, preferUser) {
 function showSetup(first) {
   const memberRow = () => `<div class="row"><input class="m-name" placeholder="Employee name"><input class="m-pos" placeholder="Position (e.g. Developer)"><button class="iconbtn" title="Remove" onclick="this.parentElement.remove()">✕</button></div>`;
   $("#setup").innerHTML = `<div class="setup"><div class="panel">
-    <div class="mark"><svg viewBox="0 0 32 32" width="38" height="38" aria-hidden="true"><rect width="32" height="32" rx="9" fill="currentColor"/><g fill="none" stroke="var(--on-ink)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="9"/><circle cx="16" cy="16" r="4"/><path d="M16 16 L25 7"/><path d="M20.5 6.5 H25.5 V11.5"/></g></svg></div>
+    <div class="wordmark">TASKFLOW</div>
     <h1>${first ? "Create your team" : "Create a new team"}</h1>
     <p>Add the team, its leader and the people who report to them. You can change members later.</p>
     <div class="field"><label>Team name</label><input id="s-team" placeholder="e.g. Traceability Team" autofocus></div>
@@ -355,16 +357,17 @@ async function renderSheet(empId) {
     <div class="banner" style="${mstyle(person.id)}">${avatar(person, "lg")}
       <div class="grow"><h2>${esc(person.name)}</h2><small>${esc(person.position || "Team member")} · ${open} open · ${tasks.length - open} done</small></div>
       <button class="btn solid" id="sumOne">✦ Summarize</button></div>
+    ${lang !== "en" ? `<div class="viewnote">Translated view (${cfg.languages[lang]}). Anything you save is stored in English. <button class="link" id="backEn">Back to English</button></div>` : ""}
     <div class="sheetwrap"><table><thead><tr><th style="width:24%">Task</th><th>Priority</th><th>Deadline</th><th>Status</th><th>Progress</th><th style="width:20%">Blocker</th><th style="width:20%">Remarks</th>${isM ? "<th></th>" : ""}</tr></thead>
     <tbody>${tasks.map(t => `
       <tr data-id="${t.id}" class="${t.overdue ? "overdue" : ""} ${t.status === "Done" ? "done" : ""}">
-        <td>${isM ? `<input data-f="title" value="${esc(t.title)}">` : `<div class="ro"><b>${esc(t.title)}</b></div>`}</td>
+        <td>${isM ? `<input data-f="title" value="${esc(t.title)}" title="${esc(t.title_orig)}">` : `<div class="ro" title="${esc(t.title_orig)}"><b>${esc(t.title)}</b></div>`}</td>
         <td>${isM ? `<select data-f="priority" data-v="${t.priority}">${sel(cfg.priorities, t.priority)}</select>` : `<div class="ro">${t.priority}</div>`}</td>
         <td>${isM ? `<input type="date" data-f="deadline" value="${t.deadline || ""}">` : `<div class="ro">${t.deadline || ""}</div>`}</td>
         <td><select data-f="status" data-v="${t.status}">${sel(cfg.statuses, t.status)}</select></td>
         <td><div class="prog"><input type="range" min="0" max="100" step="5" data-f="progress" value="${t.progress}" style="accent-color:${grade(t.progress)}"><span>${t.progress}%</span></div></td>
-        <td><input data-f="blocker" value="${esc(t.blocker)}" placeholder="Any language…"></td>
-        <td><input data-f="remarks" value="${esc(t.remarks)}" placeholder="Any language…"></td>
+        <td><input data-f="blocker" value="${esc(t.blocker)}" placeholder="Type in any language…" title="${esc(t.blocker_orig)}"></td>
+        <td><input data-f="remarks" value="${esc(t.remarks)}" placeholder="Type in any language…" title="${esc(t.remarks_orig)}"></td>
         ${isM ? `<td class="ro"><button class="iconbtn" data-del title="Delete task">✕</button></td>` : ""}
       </tr>`).join("") || `<tr><td colspan="8" class="empty">No tasks yet${isM ? " — add the first one below" : ""}</td></tr>`}
     ${isM ? `<tr class="add">
@@ -374,9 +377,10 @@ async function renderSheet(empId) {
         <td colspan="3"><input id="nt-rem" placeholder="Remarks (optional)"></td>
         <td colspan="2" class="ro"><button class="btn solid small" id="nt-add">Add task</button></td></tr>` : ""}
     </tbody></table></div>
-    <p class="hint">Click any cell to edit — it saves automatically. Type in Hindi, Marathi, English or Hinglish: it is stored in English. Use Translate (top) to read it in another language.</p>`;
+    <p class="hint">Click any cell to edit — it saves automatically. Type in Hindi, Marathi, English or Hinglish. Spelling is corrected and it is always stored in English. Hover a cell to see what was originally typed. Use Translate (top) to read in another language.</p>`;
 
   $("#sumOne").onclick = () => summarize(empId);
+  if ($("#backEn")) $("#backEn").onclick = () => { setLang("en"); render(); };
   document.querySelectorAll("tbody tr[data-id]").forEach(row => {
     const id = row.dataset.id;
     row.querySelectorAll("[data-f]").forEach(el => {
@@ -385,7 +389,12 @@ async function renderSheet(empId) {
       el.onchange = async () => {
         let v = el.value; if (f === "progress") v = +v;
         toast("Saving…");
-        try { await api(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ [f]: v }) }); toast("Saved"); } catch {}
+        const isText = ["title", "blocker", "remarks"].includes(f);
+        try {
+          const r = await api(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ [f]: v }) });
+          toast(isText ? (r.translated === false ? "Saved as typed — AI translation unavailable" : "Saved in English") : "Saved");
+        } catch {}
+        if (isText) setLang("en");
         if (["status", "title", "blocker", "remarks", "deadline"].includes(f)) render(); else if (el.dataset.v) el.dataset.v = v;
       };
     });
@@ -398,9 +407,10 @@ async function renderSheet(empId) {
       const title = $("#nt-title").value.trim(); if (!title) return toast("Enter a task");
       add.disabled = true; toast("Adding…");
       try {
-        await api("/tasks", { method: "POST", body: JSON.stringify({ employee_id: empId, title, priority: $("#nt-pri").value, deadline: $("#nt-date").value || null, remarks: $("#nt-rem").value }) });
-        toast("Task added");
+        const r = await api("/tasks", { method: "POST", body: JSON.stringify({ employee_id: empId, title, priority: $("#nt-pri").value, deadline: $("#nt-date").value || null, remarks: $("#nt-rem").value }) });
+        toast(r.translated === false ? "Added as typed — AI translation unavailable" : "Task added in English");
       } catch {}
+      setLang("en");
       render();
     };
     add.onclick = submit;

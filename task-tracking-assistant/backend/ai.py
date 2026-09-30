@@ -1,6 +1,7 @@
 """Translation layer. Uses Groq (OpenAI-compatible API); falls back to passthrough without a key."""
 import json
 import os
+import re
 from pathlib import Path
 
 import httpx
@@ -117,36 +118,85 @@ def _request(messages: list[dict], json_mode: bool = True) -> dict:
     return {"url": f"{base}/chat/completions", "headers": {"Authorization": f"Bearer {key}"}, "body": body}
 
 
-def _call(texts: list[str], target: str) -> list[str]:
-    """Translate a batch of texts into `target`. Raises on failure."""
-    system = (
-        f"You translate workplace task-tracking text into {target}. The input may be in Hindi, Marathi, "
-        "English or Hinglish (or a mix). Keep names, product names, codes and technical terms unchanged. "
-        "Be concise and natural, the way colleagues in an Indian office actually talk. When translating INTO Marathi, Hindi or Hinglish, keep common English IT/work terms "
-        "(deployment, server, backend, UI, access, report, Excel, format, testing, blocker, etc.) in transliterated form instead of replacing them with formal textbook words. "
-        "If a text is already in the target language return it unchanged. "
-        'Reply ONLY with JSON: {"translations": [...]} with exactly one string per input, same order.'
-    )
+CACHE_VER = "v3"  # bump when prompts change so old cached translations are not reused
+
+# What the OUTPUT must look like for each language.
+SCRIPT_RULES = {
+    "en": "Write plain, natural workplace English using only Latin letters. NEVER output Devanagari. "
+          "Fix spelling and grammar mistakes from the input. Keep people and place names, product names and codes as they are (in Latin letters).",
+    "mr": "Write natural Marathi ENTIRELY in Devanagari script, the way a colleague in a Maharashtra office writes. "
+          "Transliterate English/technical words and people/place names INTO Devanagari, never leave them in Latin letters "
+          "(Excel -> एक्सेल, deployment -> डिप्लॉयमेंट, server -> सर्व्हर, access -> ऍक्सेस, report -> रिपोर्ट, Chakan -> चाकण, Sudesh -> सुदेश). "
+          "Only ALL-CAPITAL acronyms (UI, PFMEA, PDF, API) and numbers/codes may stay in Latin letters.",
+    "hi": "Write natural Hindi ENTIRELY in Devanagari script, the way a colleague in an Indian office writes. "
+          "Transliterate English/technical words and people/place names INTO Devanagari, never leave them in Latin letters "
+          "(Excel -> एक्सेल, deployment -> डिप्लॉयमेंट, server -> सर्वर, access -> एक्सेस, report -> रिपोर्ट, Chakan -> चाकण, Sudesh -> सुदेश). "
+          "Only ALL-CAPITAL acronyms (UI, PFMEA, PDF, API) and numbers/codes may stay in Latin letters.",
+    "hinglish": "Write casual Hindi in ROMAN (Latin) letters as Indians text at work, e.g. 'Server access nahi mila, deployment ruka hua hai'. "
+                "NEVER output Devanagari. Common English work words stay in English.",
+}
+
+_DEVANAGARI = re.compile(r"[\u0900-\u097F]")
+_LATIN_WORD = re.compile(r"\b[A-Za-z]{2,}\b")
+
+
+def _problem(out: str, lang: str) -> str | None:
+    """Return a description of what is wrong with `out` for this language, or None if it is fine."""
+    if lang in ("en", "hinglish") and _DEVANAGARI.search(out):
+        return "it contains Devanagari letters but must use only Latin letters"
+    if lang in ("mr", "hi"):
+        bad = [w for w in _LATIN_WORD.findall(out) if not w.isupper()]
+        if bad:
+            return "these words are still in Latin letters, write them in Devanagari: " + ", ".join(sorted(set(bad)))
+    return None
+
+
+def _chat_json(system: str, payload: dict) -> dict:
     req = _request([{"role": "system", "content": system},
-                    {"role": "user", "content": json.dumps({"texts": texts}, ensure_ascii=False)}])
+                    {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}])
     r = httpx.post(req["url"], headers=req["headers"], json=req["body"], timeout=30, verify=_verify())
     r.raise_for_status()
-    out = json.loads(r.json()["choices"][0]["message"]["content"])["translations"]
-    if len(out) != len(texts) or not all(isinstance(x, str) for x in out):
-        raise ValueError("bad translation shape")
-    return out
+    return json.loads(r.json()["choices"][0]["message"]["content"])
 
 
-def translate_many(texts: list[str], lang: str) -> list[str]:
-    """Translate texts to lang code, using the cache. Never raises; falls back to the input text."""
+def _system(lang: str) -> str:
+    if lang == "en":
+        return (
+            "You clean up and translate workplace task-tracking notes INTO ENGLISH. Each input may be Hindi or Marathi in Devanagari, "
+            "Hindi/Marathi written in Roman letters (Hinglish), English with spelling mistakes, or a mix. "
+            "ALWAYS detect the language, correct spelling, and output correct concise English. Do not leave any Hindi/Marathi words untranslated "
+            "(except people/place/product names and codes). Do not add information that is not there. "
+            + SCRIPT_RULES["en"] + " Examples: 'server var deploy karne' -> 'Deploy to the server'; "
+            "'Chakan Excel format fail ho raha hai' -> 'Chakan Excel format is failing'; "
+            "'बारकोड स्कॅन मधील बग दुरुस्त करा' -> 'Fix the bug in barcode scanning'; 'waiting for acess from IT' -> 'Waiting for access from IT'. "
+            'Reply ONLY with JSON: {"translations": [...]}, exactly one string per input, same order.'
+        )
+    return (
+        f"You translate short workplace task-tracking notes from English into {LANGS[lang]}. "
+        + SCRIPT_RULES[lang] + " Be concise; do not add or drop information. "
+        'Reply ONLY with JSON: {"translations": [...]}, exactly one string per input, same order.'
+    )
+
+
+def _repair(src: str, draft: str, lang: str, problem: str) -> str:
+    system = (f"You fix a translation. Target: {LANGS[lang]}. Rules: {SCRIPT_RULES[lang]} "
+              'Reply ONLY with JSON: {"result": "..."} containing the corrected text.')
+    out = _chat_json(system, {"source": src, "draft": draft, "problem": problem})["result"]
+    return out if isinstance(out, str) and out.strip() else draft
+
+
+def _translate(texts: list[str], lang: str) -> tuple[list[str], bool]:
+    """Translate/clean texts into `lang` (cached). Never raises. Returns (results, ok); ok=False if the AI call failed."""
     result = {t: t for t in texts}
     todo = sorted({t for t in texts if t and t.strip()})
     if not todo or lang not in LANGS:
-        return [result[t] for t in texts]
+        return [result[t] for t in texts], True
+    key = f"{lang}:{CACHE_VER}"
+    ok = True
     with conn() as c:
         missing = []
         for t in todo:
-            row = c.execute("SELECT result FROM translations WHERE text=? AND lang=?", (t, lang)).fetchone()
+            row = c.execute("SELECT result FROM translations WHERE text=? AND lang=?", (t, key)).fetchone()
             if row:
                 result[t] = row["result"]
             else:
@@ -155,31 +205,46 @@ def translate_many(texts: list[str], lang: str) -> list[str]:
             try:
                 for i in range(0, len(missing), 30):
                     chunk = missing[i:i + 30]
-                    for src, out in zip(chunk, _call(chunk, LANGS[lang])):
+                    outs = _chat_json(_system(lang), {"texts": chunk})["translations"]
+                    if len(outs) != len(chunk) or not all(isinstance(x, str) for x in outs):
+                        raise ValueError("bad translation shape")
+                    for src, out in zip(chunk, outs):
+                        problem = _problem(out, lang)
+                        if problem:  # one automatic repair pass
+                            try:
+                                out = _repair(src, out, lang, problem)
+                            except Exception as e:
+                                print("repair failed:", e)
                         result[src] = out
-                        c.execute("INSERT OR REPLACE INTO translations VALUES(?,?,?)", (src, lang, out))
-            except Exception as e:  # network/quota/format -> show original rather than fail
+                        c.execute("INSERT OR REPLACE INTO translations VALUES(?,?,?)", (src, key, out))
+            except Exception as e:  # network/quota/format
+                ok = False
                 print("translation failed:", e)
-    return [result[t] for t in texts]
+        elif missing:
+            ok = True  # AI not configured: nothing to translate with (UI shows a banner)
+    return [result[t] for t in texts], ok
 
 
-def to_english(text: str) -> str:
+def translate_many(texts: list[str], lang: str) -> list[str]:
+    return _translate(texts, lang)[0]
+
+
+def to_english(text: str) -> tuple[str, bool]:
+    """Spell-check + translate anything a user typed into English. Returns (english_text, ai_ok)."""
     text = (text or "").strip()
     if not text:
-        return ""
-    return translate_many([text], "en")[0]
+        return "", True
+    out, ok = _translate([text], "en")
+    return out[0], ok
 
 
 def summarize(facts: str, lang: str, scope: str) -> str:
     """AI summary of task facts in the chosen language. Raises on failure (caller falls back)."""
-    target = LANGS.get(lang, LANGS["en"])
+    lang = lang if lang in LANGS else "en"
     system = (
-        f"You help a team lead understand {scope}. Write the summary in {target}. "
+        f"You help a team lead understand {scope}. Write the summary in {LANGS[lang]}. " + SCRIPT_RULES[lang] + " "
         "Use ONLY the facts given; never invent tasks, numbers or names. Format: 4 to 7 short lines, each starting with '• '. "
-        "Cover: overall progress, what is done, what is in progress, blockers, and what needs attention (overdue or at-risk work). "
-        "Keep names, product names and technical terms unchanged. "
-        + ("When writing Marathi, Hindi or Hinglish keep common English IT/work terms transliterated. " if lang != "en" else "")
-        + "No headings, no preamble."
+        "Cover: overall progress, what is done, what is in progress, blockers, and what needs attention (overdue or at-risk work). No headings, no preamble."
     )
     req = _request([{"role": "system", "content": system}, {"role": "user", "content": facts}], json_mode=False)
     r = httpx.post(req["url"], headers=req["headers"], json=req["body"], timeout=45, verify=_verify())
