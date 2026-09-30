@@ -243,6 +243,62 @@ def patch_task(task_id: int, p: TaskPatch, x_user_id: Optional[int] = Header(Non
     return {"ok": True}
 
 
+def _facts_and_fallback(c, people, today):
+    """Plain-text facts for the LLM plus a rule-based English summary used when AI is off or fails."""
+    facts, lines = [f"Today: {today}"], []
+    tot = done = blocked = overdue = 0
+    blockers, late, active = [], [], []
+    for p in people:
+        tasks = c.execute("SELECT * FROM tasks WHERE employee_id=? ORDER BY deadline", (p["id"],)).fetchall()
+        facts.append(f"\n{p['name']} ({p['position'] or 'team member'}): {len(tasks)} tasks")
+        for t in tasks:
+            od = bool(t["deadline"]) and t["deadline"] < today and t["status"] != "Done"
+            facts.append(f"- {t['title']} | {t['status']} | {t['progress']}% | due {t['deadline'] or 'n/a'}"
+                         + (" | OVERDUE" if od else "") + (f" | blocker: {t['blocker']}" if t["blocker"] else "")
+                         + (f" | remarks: {t['remarks']}" if t["remarks"] else ""))
+            tot += 1; done += t["status"] == "Done"; blocked += t["status"] == "Blocked"; overdue += od
+            who = f"{p['name']}: " if len(people) > 1 else ""
+            if t["blocker"] and t["status"] != "Done":
+                blockers.append(f"{who}{t['title']} - {t['blocker']}")
+            if od:
+                late.append(f"{who}{t['title']} (due {t['deadline']})")
+            if t["status"] == "In Progress":
+                active.append(f"{who}{t['title']} ({t['progress']}%)")
+    if not tot:
+        return "\n".join(facts), "• No tasks yet."
+    lines.append(f"• {done} of {tot} tasks done ({round(100 * done / tot)}%); {tot - done} still open.")
+    lines.append("• In progress: " + ("; ".join(active) if active else "nothing right now") + ".")
+    lines.append("• Blockers: " + ("; ".join(blockers) if blockers else "none reported") + ".")
+    lines.append("• Overdue: " + ("; ".join(late) if late else "none") + ".")
+    if blocked:
+        lines.append(f"• {blocked} task(s) marked Blocked - needs attention.")
+    return "\n".join(facts), "\n".join(lines)
+
+
+@app.post("/api/summary")
+def summary(employee_id: Optional[int] = None, lang: str = "en", x_user_id: Optional[int] = Header(None)):
+    """AI summary of one person's tasks/blockers, or (manager only, no employee_id) the whole team."""
+    u = current_user(x_user_id)
+    with conn() as c:
+        if employee_id is None:
+            require_manager(u)
+            people = c.execute("SELECT * FROM users WHERE role='employee' AND team_id=? ORDER BY id", (u["team_id"],)).fetchall()
+            scope = "the whole team's work"
+        else:
+            if u["role"] != "manager" and u["id"] != employee_id:
+                raise HTTPException(403, "You can only summarize your own work")
+            people = [employee_in_team(c, employee_id, u["team_id"])]
+            scope = f"one team member's work ({people[0]['name']})"
+        facts, fallback = _facts_and_fallback(c, people, date.today().isoformat())
+    if not ai.enabled():
+        return {"summary": fallback, "ai": False, "lang": "en"}
+    try:
+        return {"summary": ai.summarize(facts, lang, scope), "ai": True, "lang": lang}
+    except Exception as e:
+        print("summary failed:", e)
+        return {"summary": fallback, "ai": False, "lang": "en"}
+
+
 @app.delete("/api/tasks/{task_id}")
 def delete_task(task_id: int, x_user_id: Optional[int] = Header(None)):
     u = current_user(x_user_id)

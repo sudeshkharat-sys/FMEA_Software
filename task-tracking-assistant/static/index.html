@@ -4,141 +4,159 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TaskFlow</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b5bf0'/%3E%3Cpath d='M9 17l5 5 9-11' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111'/%3E%3Cpath d='M9 17l5 5 9-11' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<script>
+  // theme: saved choice, else system preference
+  (function () { let t; try { t = localStorage.getItem("theme"); } catch (e) {}
+    if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = t; })();
+</script>
 <style>
-  :root {
-    --bg:#f5f6fb; --card:#ffffff; --line:#e4e7f0; --txt:#1c2033; --mut:#6b7190;
-    --brand:#5b5bf0; --brand2:#8b5cf6; --brand-soft:#eeeefe;
-    --todo:#6b7190; --todo-bg:#eef0f6; --prog:#2563eb; --prog-bg:#e3edff;
-    --block:#dc2626; --block-bg:#fde8e8; --done:#16a34a; --done-bg:#dcf7e4;
-    --low:#6b7190; --low-bg:#eef0f6; --med:#b45309; --med-bg:#fef3c7; --high:#dc2626; --high-bg:#fde8e8;
-    --shadow:0 1px 2px rgba(20,24,60,.06), 0 6px 20px rgba(20,24,60,.06);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg:#0f1220; --card:#181c30; --line:#2a2f4a; --txt:#e8eaf6; --mut:#9096b8; --brand-soft:#23264a;
-      --todo-bg:#262a44; --prog-bg:#172a55; --block-bg:#4a1c24; --done-bg:#13361f;
-      --low-bg:#262a44; --med-bg:#4a3512; --high-bg:#4a1c24; --prog:#7aa7ff; --block:#ff7b7b; --done:#5fdc8a; --med:#f5b658; --high:#ff7b7b;
-      --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.3);
-    }
-  }
+  /* Monochrome UI. Colour is reserved for member profiles (--m-bg / --m-deep set per member). */
+  :root { --bg:#f6f6f7; --card:#ffffff; --raise:#fafafa; --line:#e6e6e9; --line2:#d4d4d9; --txt:#111113; --mut:#6b6b73; --faint:#9a9aa3;
+          --ink:#111113; --on-ink:#ffffff; --fill:#ececef; --tint:100%; --shadow:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05); }
+  :root[data-theme=dark] { --bg:#0a0a0b; --card:#131315; --raise:#18181b; --line:#25252a; --line2:#34343b; --txt:#f3f3f5; --mut:#9a9aa3; --faint:#6b6b73;
+          --ink:#f3f3f5; --on-ink:#0a0a0b; --fill:#222226; --tint:16%; --shadow:0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.35); }
   * { box-sizing:border-box; }
   html,body { height:100%; margin:0; }
-  body { background:var(--bg); color:var(--txt); font:14px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif; display:flex; flex-direction:column; }
-  button,select,input { font:inherit; color:var(--txt); }
-  button { cursor:pointer; }
+  body { background:var(--bg); color:var(--txt); font:14px/1.5 -apple-system,"Segoe UI Variable","Segoe UI",Inter,system-ui,Roboto,sans-serif; display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; }
+  button,select,input,textarea { font:inherit; color:var(--txt); } button { cursor:pointer; }
+  h1,h2,h3 { letter-spacing:-.02em; }
 
   /* header */
-  header { background:linear-gradient(120deg,var(--brand),var(--brand2)); color:#fff; padding:12px 20px; display:flex; gap:14px; align-items:center; flex-wrap:wrap; box-shadow:var(--shadow); }
-  .logo { font-weight:800; font-size:18px; letter-spacing:.2px; display:flex; align-items:center; gap:8px; margin-right:auto; }
-  .logo i { font-style:normal; background:rgba(255,255,255,.2); border-radius:8px; padding:2px 7px; }
-  .ctl { display:flex; align-items:center; gap:6px; font-size:12px; opacity:.95; }
-  .ctl select { background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:5px 8px; }
-  .ctl select option { color:#1c2033; }
-  .btn { border:0; border-radius:10px; padding:8px 14px; font-weight:600; background:var(--brand); color:#fff; transition:transform .05s, filter .15s; }
-  .btn:hover { filter:brightness(1.08); } .btn:active { transform:translateY(1px); }
-  .btn.ghost { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.35); }
-  .btn.light { background:var(--card); color:var(--brand); }
-  .btn.plain { background:var(--card); color:var(--txt); border:1px solid var(--line); }
-  .btn.small { padding:5px 10px; font-size:12px; }
-  .btn.danger { background:var(--block-bg); color:var(--block); }
+  header { background:var(--card); border-bottom:1px solid var(--line); padding:10px 24px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .logo { font-weight:700; font-size:17px; letter-spacing:-.03em; display:flex; align-items:center; gap:9px; margin-right:auto; }
+  .logo i { font-style:normal; width:26px; height:26px; border-radius:8px; background:var(--ink); color:var(--on-ink); display:grid; place-items:center; font-size:14px; }
+  .pill { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mut); }
+  .pill select, .btn { border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:7px 11px; }
+  .pill select { color:var(--txt); font-weight:500; max-width:190px; }
+  .btn { font-weight:600; transition:background .12s, transform .05s, border-color .12s; display:inline-flex; align-items:center; gap:6px; }
+  .btn:hover { background:var(--fill); } .btn:active { transform:translateY(1px); }
+  .btn.solid { background:var(--ink); color:var(--on-ink); border-color:var(--ink); } .btn.solid:hover { opacity:.88; background:var(--ink); }
+  .btn.small { padding:5px 10px; font-size:12px; border-radius:8px; }
+  .btn.danger:hover { border-color:var(--ink); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .menuwrap { position:relative; }
+  .menu { position:absolute; right:0; top:calc(100% + 6px); background:var(--card); border:1px solid var(--line2); border-radius:12px; box-shadow:var(--shadow); padding:6px; min-width:170px; z-index:30; display:none; }
+  .menu.open { display:block; }
+  .menu button { display:flex; width:100%; justify-content:space-between; gap:12px; border:0; background:transparent; padding:8px 10px; border-radius:8px; text-align:left; }
+  .menu button:hover { background:var(--fill); } .menu button.on { font-weight:700; } .menu button.on::after { content:"✓"; }
 
-  main { flex:1; overflow:auto; padding:20px; max-width:1400px; width:100%; margin:0 auto; }
-  #notice { display:none; margin:0 0 14px; padding:10px 14px; border-radius:10px; background:var(--med-bg); color:var(--med); font-weight:500; }
+  main { flex:1; overflow:auto; padding:28px 24px; max-width:1360px; width:100%; margin:0 auto; }
+  #notice { display:none; margin:0 0 16px; padding:10px 14px; border-radius:10px; background:var(--fill); color:var(--mut); border:1px solid var(--line); font-size:13px; }
+  .pagehead { display:flex; align-items:flex-end; gap:12px; margin-bottom:20px; flex-wrap:wrap; } .pagehead .grow { margin-right:auto; }
+  .pagehead h2 { margin:0; font-size:26px; } .pagehead small { color:var(--mut); }
 
   /* KPI tiles */
-  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:18px; }
-  .kpi { background:var(--card); border-radius:14px; padding:14px 16px; box-shadow:var(--shadow); position:relative; overflow:hidden; }
-  .kpi::before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--c); }
-  .kpi b { display:block; font-size:28px; line-height:1.1; color:var(--c); }
-  .kpi span { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.6px; }
-  h2 { margin:0 0 12px; font-size:16px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:24px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px 18px; }
+  .kpi b { display:block; font-size:30px; line-height:1.1; letter-spacing:-.03em; }
+  .kpi span { color:var(--mut); font-size:12px; }
 
-  /* employee cards */
-  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:16px; }
-  .ecard { background:var(--card); border-radius:16px; padding:16px; box-shadow:var(--shadow); cursor:pointer; transition:transform .12s, box-shadow .12s; border:1px solid transparent; }
-  .ecard:hover { transform:translateY(-3px); border-color:var(--brand); }
-  .ehead { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
-  .avatar { width:42px; height:42px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:700; flex:none; }
-  .avatar.lg { width:52px; height:52px; font-size:18px; }
-  .ehead b { font-size:15px; } .ehead small { color:var(--mut); display:block; }
-  .bar { height:9px; background:var(--line); border-radius:6px; overflow:hidden; } .bar i { display:block; height:100%; background:linear-gradient(90deg,var(--brand),var(--brand2)); border-radius:6px; }
-  .pct { display:flex; justify-content:space-between; font-size:12px; color:var(--mut); margin:4px 0 12px; }
-  .stats { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
-  .chip { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600; background:var(--todo-bg); color:var(--todo); white-space:nowrap; }
-  .chip.prog { background:var(--prog-bg); color:var(--prog); } .chip.block { background:var(--block-bg); color:var(--block); } .chip.done { background:var(--done-bg); color:var(--done); }
-  .chip.med { background:var(--med-bg); color:var(--med); } .chip.high { background:var(--high-bg); color:var(--high); }
-  .sect { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--mut); margin:10px 0 4px; }
-  ul.plain { margin:0; padding-left:18px; } ul.plain li { margin:2px 0; }
-  .warn li { color:var(--block); }
+  /* member colour: pastel, Apple-style. Inline vars --m-bg / --m-deep per member. */
+  .mtint { background:color-mix(in srgb, var(--m-bg) var(--tint), var(--card)); }
+  .avatar { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:var(--m-bg); color:#1b1b1f; font-weight:700; flex:none; font-size:14px; }
+  .avatar.lg { width:56px; height:56px; font-size:19px; } .avatar.sm { width:22px; height:22px; font-size:10px; }
+
+  /* member cards */
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+  .ecard { background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:hidden; cursor:pointer; transition:transform .15s, box-shadow .15s, border-color .15s; display:flex; flex-direction:column; }
+  .ecard:hover { transform:translateY(-3px); box-shadow:var(--shadow); border-color:var(--line2); }
+  .ecard .top { padding:18px; display:flex; align-items:center; gap:14px; }
+  .ecard .top .avatar { background:color-mix(in srgb, var(--m-bg) 55%, #fff); }
+  :root[data-theme=dark] .ecard .top .avatar { background:var(--m-bg); }
+  .ecard .top b { font-size:16px; letter-spacing:-.01em; display:block; } .ecard .top small { color:var(--mut); }
+  .ecard .top .pct { margin-left:auto; font-size:22px; font-weight:700; letter-spacing:-.03em; }
+  .ecard .body { padding:16px 18px 18px; display:flex; flex-direction:column; gap:12px; flex:1; }
+  .bar { height:7px; background:var(--fill); border-radius:8px; overflow:hidden; } .bar i { display:block; height:100%; background:var(--m-deep); border-radius:8px; transition:width .4s; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600; background:var(--fill); color:var(--mut); white-space:nowrap; border:1px solid transparent; }
+  .chip.ink { background:var(--ink); color:var(--on-ink); } .chip.line { background:transparent; border-color:var(--ink); color:var(--txt); }
+  .sect { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); margin-bottom:4px; font-weight:600; }
+  ul.plain { margin:0; padding-left:18px; } ul.plain li { margin:2px 0; } ul.bl li { font-weight:600; }
   .muted { color:var(--mut); }
+  .ecard .foot { margin-top:auto; padding-top:4px; display:flex; justify-content:space-between; align-items:center; }
 
   /* sheet */
-  .sheethead { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
-  .sheethead h2 { margin:0; font-size:20px; } .sheethead small { color:var(--mut); }
-  .sheetwrap { background:var(--card); border-radius:16px; box-shadow:var(--shadow); overflow:auto; }
+  .banner { border-radius:20px; padding:20px 22px; display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap; border:1px solid var(--line); }
+  .banner .avatar { background:color-mix(in srgb, var(--m-bg) 55%, #fff); } :root[data-theme=dark] .banner .avatar { background:var(--m-bg); }
+  .banner h2 { margin:0; font-size:24px; } .banner small { color:var(--mut); } .banner .grow { margin-right:auto; }
+  .sheetwrap { background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:auto; }
   table { border-collapse:collapse; width:100%; min-width:1150px; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); background:var(--raise); padding:11px 8px; position:sticky; top:0; z-index:1; white-space:nowrap; font-weight:600; border-bottom:1px solid var(--line); }
   .sheetwrap th:nth-child(2) { min-width:120px; } .sheetwrap th:nth-child(3) { min-width:150px; } .sheetwrap th:nth-child(4) { min-width:150px; } .sheetwrap th:nth-child(5) { min-width:170px; }
-  .teamtable { min-width:0 !important; }
-  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--mut); background:var(--brand-soft); padding:10px 8px; position:sticky; top:0; z-index:1; white-space:nowrap; }
   td { border-top:1px solid var(--line); padding:0; vertical-align:middle; }
-  tbody tr:hover td { background:rgba(91,91,240,.05); }
-  td.ro, .ro { padding:8px; }
-  td input:not([type=range]), td select { width:100%; border:0; background:transparent; padding:9px 8px; border-radius:0; }
-  td input:focus, td select:focus { outline:2px solid var(--brand); outline-offset:-2px; background:var(--card); border-radius:6px; }
-  td select { font-weight:600; cursor:pointer; text-overflow:clip; }
-  td select[data-f=priority] { padding-right:2px; }
-  select[data-f=status] { border-radius:20px; padding:5px 8px; margin:4px 6px; width:calc(100% - 12px); }
-  select[data-f=status][data-v="To Do"] { background:var(--todo-bg); color:var(--todo); }
-  select[data-f=status][data-v="In Progress"] { background:var(--prog-bg); color:var(--prog); }
-  select[data-f=status][data-v="Blocked"] { background:var(--block-bg); color:var(--block); }
-  select[data-f=status][data-v="Done"] { background:var(--done-bg); color:var(--done); }
-  select[data-f=priority][data-v="Low"] { color:var(--low); } select[data-f=priority][data-v="Medium"] { color:var(--med); } select[data-f=priority][data-v="High"] { color:var(--high); }
-  tr.overdue input[type=date] { color:var(--block); font-weight:700; }
-  .prog { display:flex; align-items:center; gap:8px; padding:8px; } .prog input[type=range] { flex:1; min-width:70px; accent-color:var(--brand); padding:0; } .prog span { width:38px; text-align:right; font-weight:600; font-size:12px; }
-  tr.add td { background:var(--brand-soft); border-top:2px solid var(--brand); }
-  tr.done td { opacity:.7; }
-  .hint { color:var(--mut); font-size:12px; margin:10px 2px; }
-  .iconbtn { border:0; background:transparent; font-size:16px; padding:6px 8px; border-radius:8px; } .iconbtn:hover { background:var(--block-bg); }
-  .empty { padding:36px; text-align:center; color:var(--mut); }
+  tbody tr:first-child td { border-top:0; } tbody tr:hover td { background:var(--raise); }
+  .ro { padding:9px 8px; }
+  td input:not([type=range]), td select { width:100%; border:0; background:transparent; padding:10px 8px; border-radius:0; }
+  td input:focus, td select:focus { outline:2px solid var(--ink); outline-offset:-2px; background:var(--card); border-radius:8px; }
+  td select { font-weight:600; cursor:pointer; }
+  select[data-f=status] { border-radius:20px; padding:5px 10px; margin:6px; width:calc(100% - 12px); border:1px solid var(--line2); }
+  select[data-f=status][data-v="To Do"] { color:var(--mut); }
+  select[data-f=status][data-v="In Progress"] { background:var(--fill); }
+  select[data-f=status][data-v="Blocked"] { border:1.5px solid var(--ink); }
+  select[data-f=status][data-v="Done"] { background:var(--ink); color:var(--on-ink); border-color:var(--ink); }
+  select[data-f=status] option { background:var(--card); color:var(--txt); }
+  select[data-f=priority][data-v="Low"] { color:var(--mut); font-weight:500; } select[data-f=priority][data-v="High"] { font-weight:800; }
+  tr.overdue input[type=date] { font-weight:800; text-decoration:underline; }
+  .prog { display:flex; align-items:center; gap:8px; padding:8px; } .prog input[type=range] { flex:1; min-width:70px; accent-color:var(--ink); padding:0; } .prog span { width:38px; text-align:right; font-weight:600; font-size:12px; color:var(--mut); }
+  tr.add td { background:var(--raise); border-top:1px solid var(--line2); }
+  tr.done td { opacity:.6; }
+  .hint { color:var(--faint); font-size:12px; margin:12px 4px; }
+  .iconbtn { border:0; background:transparent; font-size:15px; padding:6px 8px; border-radius:8px; color:var(--mut); } .iconbtn:hover { background:var(--fill); color:var(--txt); }
+  .empty { padding:40px; text-align:center; color:var(--mut); }
+  .teamtable { min-width:0 !important; } .teamtable td { padding:12px 14px; }
+  .addmember { display:grid; grid-template-columns:1fr 1fr auto; gap:8px; padding:14px; background:var(--raise); border-top:1px solid var(--line); }
+  .addmember input { border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:9px 12px; }
 
-  /* tabs (Excel-like, bottom) */
-  .tabs { display:flex; gap:4px; padding:0 14px; background:var(--card); border-top:1px solid var(--line); overflow-x:auto; box-shadow:0 -4px 16px rgba(20,24,60,.05); }
-  .tab { padding:10px 16px; cursor:pointer; white-space:nowrap; color:var(--mut); font-weight:600; border-top:3px solid transparent; display:flex; align-items:center; gap:8px; }
-  .tab:hover { color:var(--txt); background:var(--brand-soft); }
-  .tab.active { color:var(--brand); border-top-color:var(--brand); background:var(--brand-soft); }
-  .tab .avatar { width:22px; height:22px; font-size:11px; }
-  #toast { position:fixed; right:18px; bottom:64px; background:#1c2033; color:#fff; padding:9px 16px; border-radius:10px; display:none; box-shadow:var(--shadow); }
+  /* tabs (Excel-style, bottom) */
+  .tabs { display:flex; gap:2px; padding:0 20px; background:var(--card); border-top:1px solid var(--line); overflow-x:auto; }
+  .tab { padding:12px 16px; cursor:pointer; white-space:nowrap; color:var(--mut); font-weight:600; border-top:2px solid transparent; margin-top:-1px; display:flex; align-items:center; gap:8px; }
+  .tab:hover { color:var(--txt); } .tab.active { color:var(--txt); border-top-color:var(--ink); background:var(--raise); }
+  #toast { position:fixed; right:20px; bottom:70px; background:var(--ink); color:var(--on-ink); padding:9px 16px; border-radius:10px; display:none; box-shadow:var(--shadow); font-weight:500; z-index:60; }
 
-  /* forms / setup */
-  .setup { min-height:100%; display:grid; place-items:center; padding:24px; background:linear-gradient(135deg,#5b5bf0 0%,#8b5cf6 50%,#ec4899 100%); position:fixed; inset:0; overflow:auto; z-index:10; }
-  .panel { background:var(--card); border-radius:20px; padding:28px; width:100%; max-width:620px; box-shadow:0 20px 60px rgba(0,0,0,.3); }
-  .panel h1 { margin:0 0 4px; font-size:24px; } .panel p { margin:0 0 18px; color:var(--mut); }
-  .field { display:flex; flex-direction:column; gap:4px; margin-bottom:12px; } .field label { font-size:12px; font-weight:600; color:var(--mut); text-transform:uppercase; letter-spacing:.5px; }
-  .field input, .row input { border:1px solid var(--line); background:var(--bg); border-radius:10px; padding:10px 12px; width:100%; }
-  .field input:focus, .row input:focus { outline:2px solid var(--brand); }
+  /* modal */
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:grid; place-items:center; padding:20px; z-index:50; backdrop-filter:blur(3px); }
+  .modal { background:var(--card); border:1px solid var(--line); border-radius:22px; width:100%; max-width:560px; box-shadow:0 30px 80px rgba(0,0,0,.35); overflow:hidden; }
+  .modal .mh { padding:20px 22px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); }
+  .modal .mh h3 { margin:0; font-size:18px; } .modal .mh small { color:var(--mut); display:block; }
+  .modal .mb { padding:20px 22px; white-space:pre-wrap; line-height:1.7; max-height:55vh; overflow:auto; }
+  .modal .mf { padding:14px 22px; display:flex; gap:8px; justify-content:flex-end; align-items:center; border-top:1px solid var(--line); background:var(--raise); }
+  .modal .mf .note { margin-right:auto; color:var(--faint); font-size:12px; }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line2); border-top-color:var(--ink); border-radius:50%; animation:sp .7s linear infinite; vertical-align:-2px; margin-right:8px; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+
+  /* setup */
+  .setup { position:fixed; inset:0; z-index:40; background:var(--bg); display:grid; place-items:center; padding:24px; overflow:auto; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:24px; padding:32px; width:100%; max-width:620px; box-shadow:var(--shadow); }
+  .panel .mark { width:38px; height:38px; border-radius:11px; background:var(--ink); color:var(--on-ink); display:grid; place-items:center; font-size:19px; margin-bottom:18px; }
+  .panel h1 { margin:0 0 6px; font-size:26px; } .panel p { margin:0 0 22px; color:var(--mut); }
+  .field { display:flex; flex-direction:column; gap:5px; margin-bottom:12px; } .field label { font-size:12px; font-weight:600; color:var(--mut); }
+  .field input, .row input { border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:10px 12px; width:100%; }
+  .field input:focus, .row input:focus, .addmember input:focus { outline:2px solid var(--ink); outline-offset:-1px; }
   .row { display:grid; grid-template-columns:1fr 1fr 34px; gap:8px; margin-bottom:8px; }
   .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .actions { display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; align-items:center; }
+  .actions { display:flex; gap:10px; margin-top:22px; flex-wrap:wrap; }
   .actions .btn { padding:11px 18px; }
-  .link { background:none; border:0; color:var(--brand); font-weight:600; padding:6px 0; }
-  .teamtable { width:100%; min-width:0; } .teamtable td { padding:10px 12px; }
-  .addmember { display:grid; grid-template-columns:1fr 1fr auto; gap:8px; padding:12px; background:var(--brand-soft); border-radius:0 0 16px 16px; }
-  .addmember input { border:1px solid var(--line); background:var(--card); border-radius:10px; padding:9px 12px; }
-  @media (max-width:640px){ .row,.two,.addmember { grid-template-columns:1fr; } main { padding:12px; } }
+  .link { background:none; border:0; color:var(--txt); font-weight:600; padding:6px 0; text-decoration:underline; text-underline-offset:3px; }
+  @media (max-width:640px){ .row,.two,.addmember { grid-template-columns:1fr; } main { padding:16px 12px; } header { padding:10px 12px; } }
 </style>
 </head>
 <body>
 <header id="hdr" style="display:none">
-  <div class="logo"><i>✔</i> TaskFlow</div>
-  <label class="ctl">Team <select id="team"></select></label>
-  <label class="ctl">Logged in as <select id="user"></select></label>
-  <label class="ctl">🌐 <select id="lang"></select></label>
-  <span id="reportBox" class="ctl" style="display:none">
+  <div class="logo"><i>✓</i> TaskFlow</div>
+  <label class="pill">Team <select id="team"></select></label>
+  <label class="pill">Viewing as <select id="user"></select></label>
+  <div class="menuwrap">
+    <button class="btn" id="transBtn">Translate: <span id="transLabel">English</span> ▾</button>
+    <div class="menu" id="transMenu"></div>
+  </div>
+  <span id="reportBox" class="pill" style="display:none">
     <select id="period"><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
-    <button class="btn light small" id="download">⬇ Excel report</button>
+    <button class="btn" id="download">Report ↓</button>
   </span>
-  <button class="btn ghost small" id="newTeam" style="display:none">+ New team</button>
+  <button class="btn" id="newTeam" style="display:none">+ New team</button>
+  <button class="btn" id="theme" title="Light / dark">◐</button>
 </header>
 <main id="main" style="display:none">
   <div id="notice"></div>
@@ -146,13 +164,19 @@
 </main>
 <div class="tabs" id="tabs" style="display:none"></div>
 <div id="setup"></div>
+<div id="modal"></div>
 <div id="toast"></div>
 
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let cfg, me, team, tab = "overview";
-let lang = localStorage.getItem("lang") || "en";
+let lang = "en";   // English is always the default; the Translate button changes it for this session
+
+/* Apple-15-style faint colours, one per member (never white / black / gray). [pastel, deeper accent] */
+const PALETTE = [["#f4cfd8","#c97a8e"],["#f3e7b1","#b89c2e"],["#d2e2cb","#6f9a63"],["#cbdeed","#5e8db7"],["#dcd4f0","#8a78c2"],
+                 ["#f7d9c2","#cf9058"],["#c9ecdf","#5cae96"],["#ecd0ea","#b36fb0"],["#f6cdc5","#cc7566"],["#dfe6c2","#94a24f"]];
+const mstyle = id => { const [bg, deep] = PALETTE[(id - 1) % PALETTE.length]; return `--m-bg:${bg};--m-deep:${deep}`; };
 
 async function api(path, opts = {}) {
   const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", ...(me ? { "X-User-Id": me.id } : {}), ...(opts.headers || {}) } });
@@ -165,20 +189,23 @@ async function api(path, opts = {}) {
 }
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = "none", 2400); }
 const initials = n => n.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
-const hue = n => [...n].reduce((a, c) => a + c.charCodeAt(0) * 7, 0) % 360;
-const avatar = (n, cls = "") => `<span class="avatar ${cls}" style="background:hsl(${hue(n)} 60% 48%)">${esc(initials(n))}</span>`;
+const avatar = (m, cls = "") => `<span class="avatar ${cls}" style="${mstyle(m.id)}">${esc(initials(m.name))}</span>`;
 
 async function loadConfig() { cfg = await (await fetch("/api/config")).json(); }
 
 async function init() {
   await loadConfig();
-  $("#lang").innerHTML = Object.entries(cfg.languages).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
-  $("#lang").value = lang;
-  $("#lang").onchange = e => { lang = e.target.value; localStorage.setItem("lang", lang); render(); };
+  $("#transMenu").innerHTML = Object.entries(cfg.languages).map(([k, v]) => `<button data-l="${k}">${v}</button>`).join("");
+  const markLang = () => { $("#transLabel").textContent = cfg.languages[lang]; document.querySelectorAll("#transMenu button").forEach(b => b.classList.toggle("on", b.dataset.l === lang)); };
+  markLang();
+  $("#transBtn").onclick = e => { e.stopPropagation(); $("#transMenu").classList.toggle("open"); };
+  document.addEventListener("click", () => $("#transMenu").classList.remove("open"));
+  document.querySelectorAll("#transMenu button").forEach(b => b.onclick = () => { lang = b.dataset.l; markLang(); render(); });
   $("#team").onchange = e => selectTeam(+e.target.value);
   $("#user").onchange = e => { me = team.members.find(u => u.id == e.target.value); localStorage.setItem("uid", me.id); tab = me.role === "manager" ? "overview" : String(me.id); render(); };
   $("#download").onclick = () => location.href = `/api/report?period=${$("#period").value}&user=${me.id}`;
   $("#newTeam").onclick = () => showSetup(false);
+  $("#theme").onclick = () => { const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("theme", t); } catch (e) {} };
   if (!cfg.teams.length) return showSetup(true);
   const savedTeam = +localStorage.getItem("team");
   selectTeam((cfg.teams.find(t => t.id === savedTeam) || cfg.teams[0]).id, +localStorage.getItem("uid"));
@@ -194,28 +221,29 @@ function selectTeam(id, preferUser) {
   $("#user").innerHTML = team.members.map(u => `<option value="${u.id}">${esc(u.name)}${u.position ? " · " + esc(u.position) : ""}${u.role === "manager" ? " (leader)" : ""}</option>`).join("");
   $("#user").value = me.id;
   $("#setup").innerHTML = ""; ["hdr", "main"].forEach(i => $("#" + i).style.display = ""); $("#tabs").style.display = "flex";
-  if (!cfg.ai_enabled) { const n = $("#notice"); n.style.display = "block"; n.textContent = "AI translation is OFF (no LLM API key in .env). Text is saved and shown as typed."; }
+  if (!cfg.ai_enabled) { const n = $("#notice"); n.style.display = "block"; n.textContent = "AI is off (no LLM API key in .env): translation is disabled and summaries use a simple rule-based format."; }
   tab = me.role === "manager" ? "overview" : String(me.id);
   render();
 }
 
-/* ---------- team setup wizard ---------- */
+/* ---------- team setup ---------- */
 function showSetup(first) {
   const memberRow = () => `<div class="row"><input class="m-name" placeholder="Employee name"><input class="m-pos" placeholder="Position (e.g. Developer)"><button class="iconbtn" title="Remove" onclick="this.parentElement.remove()">✕</button></div>`;
   $("#setup").innerHTML = `<div class="setup"><div class="panel">
-    <h1>${first ? "Welcome 👋 Let's create your team" : "Create a new team"}</h1>
-    <p>Add the team, its leader and the people who report to them. You can add or remove members later.</p>
+    <div class="mark">✓</div>
+    <h1>${first ? "Create your team" : "Create a new team"}</h1>
+    <p>Add the team, its leader and the people who report to them. You can change members later.</p>
     <div class="field"><label>Team name</label><input id="s-team" placeholder="e.g. Traceability Team" autofocus></div>
     <div class="two">
       <div class="field"><label>Leader / Manager name</label><input id="s-lead" placeholder="e.g. Sudesh"></div>
       <div class="field"><label>Leader position</label><input id="s-leadpos" value="Team Lead"></div>
     </div>
-    <div class="sect" style="margin-top:14px">Team members</div>
+    <div class="sect" style="margin-top:16px">Team members</div>
     <div id="s-members">${memberRow()}${memberRow()}${memberRow()}</div>
     <button class="link" id="s-more">+ Add another member</button>
     <div class="actions">
-      <button class="btn" id="s-create">Create team</button>
-      ${first ? `<button class="btn plain" id="s-sample">Try with sample data</button>` : `<button class="btn plain" id="s-cancel">Cancel</button>`}
+      <button class="btn solid" id="s-create">Create team</button>
+      ${first ? `<button class="btn" id="s-sample">Try with sample data</button>` : `<button class="btn" id="s-cancel">Cancel</button>`}
     </div></div></div>`;
   $("#s-more").onclick = () => $("#s-members").insertAdjacentHTML("beforeend", memberRow());
   if ($("#s-cancel")) $("#s-cancel").onclick = () => $("#setup").innerHTML = "";
@@ -225,16 +253,35 @@ function showSetup(first) {
     if (!name || !lead) return toast("Team name and leader name are required");
     const members = [...document.querySelectorAll("#s-members .row")].map(r => ({ name: r.querySelector(".m-name").value.trim(), position: r.querySelector(".m-pos").value.trim() })).filter(m => m.name);
     const r = await api("/teams", { method: "POST", body: JSON.stringify({ name, leader_name: lead, leader_position: $("#s-leadpos").value.trim() || "Team Lead", members }) });
-    await loadConfig(); selectTeam(r.team_id, r.leader_id); toast("Team created ✓");
+    await loadConfig(); selectTeam(r.team_id, r.leader_id); toast("Team created");
   };
+}
+
+/* ---------- summarize modal ---------- */
+async function summarize(empId) {
+  const person = empId ? team.members.find(u => u.id === empId) : null;
+  const title = person ? person.name : team.name;
+  const sub = person ? (person.position || "Team member") : "Whole team";
+  const head = `<div class="mh">${person ? avatar(person) : ""}<div><h3>Summary · ${esc(title)}</h3><small>${esc(sub)} · ${cfg.languages[lang]}</small></div></div>`;
+  const close = () => $("#modal").innerHTML = "";
+  $("#modal").innerHTML = `<div class="overlay"><div class="modal">${head}<div class="mb"><span class="spin"></span>Summarizing…</div><div class="mf"><button class="btn" id="m-close">Close</button></div></div></div>`;
+  $("#m-close").onclick = close; $(".overlay").onclick = e => { if (e.target.classList.contains("overlay")) close(); };
+  try {
+    const r = await api(`/summary?lang=${lang}${empId ? "&employee_id=" + empId : ""}`, { method: "POST" });
+    const note = !r.ai ? "Rule-based summary (AI off or unavailable)" : "Written by AI from the current tasks";
+    $("#modal").innerHTML = `<div class="overlay"><div class="modal">${head}<div class="mb">${esc(r.summary)}</div>
+      <div class="mf"><span class="note">${note}</span><button class="btn" id="m-copy">Copy</button><button class="btn solid" id="m-close">Close</button></div></div></div>`;
+    $("#m-close").onclick = close; $(".overlay").onclick = e => { if (e.target.classList.contains("overlay")) close(); };
+    $("#m-copy").onclick = () => { navigator.clipboard?.writeText(r.summary); toast("Copied"); };
+  } catch { close(); }
 }
 
 /* ---------- tabs & views ---------- */
 function renderTabs() {
   const isM = me.role === "manager";
   const emps = team.members.filter(u => u.role === "employee" && (isM || u.id === me.id));
-  const items = (isM ? [["overview", `<span>📊</span> Overview`]] : []).concat(emps.map(e => [String(e.id), `${avatar(e.name)} ${esc(e.name)}`]));
-  if (isM) items.push(["team", `<span>⚙️</span> Team`]);
+  const items = (isM ? [["overview", `Overview`]] : []).concat(emps.map(e => [String(e.id), `${avatar(e, "sm")} ${esc(e.name)}`]));
+  if (isM) items.push(["team", `Team`]);
   $("#tabs").innerHTML = items.map(([id, label]) => `<div class="tab ${id === tab ? "active" : ""}" data-id="${id}">${label}</div>`).join("");
   document.querySelectorAll(".tab").forEach(t => t.onclick = () => { tab = t.dataset.id; render(); });
 }
@@ -244,7 +291,7 @@ async function render() {
   $("#reportBox").style.display = isM ? "" : "none";
   $("#newTeam").style.display = isM ? "" : "none";
   renderTabs();
-  $("#view").innerHTML = '<div class="empty">Loading…</div>';
+  $("#view").innerHTML = '<div class="empty"><span class="spin"></span>Loading…</div>';
   if (tab === "team" && isM) return renderTeam();
   if (tab === "overview" && isM) return renderOverview();
   renderSheet(+tab);
@@ -253,43 +300,43 @@ async function render() {
 async function renderOverview() {
   const data = await api(`/overview?lang=${lang}`);
   const sum = k => data.reduce((a, e) => a + e[k], 0);
-  const kpi = (n, label, c) => `<div class="kpi" style="--c:${c}"><b>${n}</b><span>${label}</span></div>`;
+  const kpi = (n, label) => `<div class="kpi"><b>${n}</b><span>${label}</span></div>`;
   const avg = data.length ? Math.round(data.reduce((a, e) => a + e.avg_progress, 0) / data.length) : 0;
   $("#view").innerHTML = `
-    <div class="sheethead"><div><h2>${esc(team.name)}</h2><small>Team overview · click a person to open their sheet</small></div></div>
-    <div class="kpis">
-      ${kpi(sum("total"), "Total tasks", "var(--brand)")}${kpi(sum("done"), "Done", "var(--done)")}
-      ${kpi(sum("in_progress"), "In progress", "var(--prog)")}${kpi(sum("blocked"), "Blocked", "var(--block)")}
-      ${kpi(sum("overdue"), "Overdue", "var(--med)")}${kpi(avg + "%", "Avg progress", "var(--brand2)")}
-    </div>
+    <div class="pagehead"><div class="grow"><h2>${esc(team.name)}</h2><small>Team overview · open a profile for details</small></div>
+      <button class="btn solid" id="sumTeam">✦ Summarize team</button></div>
+    <div class="kpis">${kpi(sum("total"), "Total tasks")}${kpi(sum("done"), "Done")}${kpi(sum("in_progress"), "In progress")}${kpi(sum("blocked"), "Blocked")}${kpi(sum("overdue"), "Overdue")}${kpi(avg + "%", "Average progress")}</div>
     ${data.length ? `<div class="cards">${data.map(e => `
-      <div class="ecard" data-id="${e.id}">
-        <div class="ehead">${avatar(e.name, "lg")}<div><b>${esc(e.name)}</b><small>${esc(e.position || "Team member")}</small></div></div>
-        <div class="bar"><i style="width:${e.avg_progress}%"></i></div>
-        <div class="pct"><span>Overall progress</span><b>${e.avg_progress}%</b></div>
-        <div class="stats"><span class="chip">${e.total} ${e.total === 1 ? "task" : "tasks"}</span><span class="chip done">${e.done} done</span><span class="chip prog">${e.in_progress} in progress</span>
-          ${e.blocked ? `<span class="chip block">${e.blocked} blocked</span>` : ""}${e.overdue ? `<span class="chip high">${e.overdue} overdue</span>` : ""}</div>
-        <div class="sect">Current work</div>
-        ${e.current_work.length ? `<ul class="plain">${e.current_work.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : `<span class="muted">Nothing in progress</span>`}
-        ${e.blockers.length ? `<div class="sect">⚠ Blockers</div><ul class="plain warn">${e.blockers.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
+      <div class="ecard" data-id="${e.id}" style="${mstyle(e.id)}">
+        <div class="top mtint">${avatar(e, "lg")}<div><b>${esc(e.name)}</b><small>${esc(e.position || "Team member")}</small></div><span class="pct">${e.avg_progress}%</span></div>
+        <div class="body">
+          <div class="bar"><i style="width:${e.avg_progress}%"></i></div>
+          <div class="chips"><span class="chip">${e.total} ${e.total === 1 ? "task" : "tasks"}</span><span class="chip">${e.done} done</span><span class="chip">${e.in_progress} in progress</span>
+            ${e.blocked ? `<span class="chip line">${e.blocked} blocked</span>` : ""}${e.overdue ? `<span class="chip ink">${e.overdue} overdue</span>` : ""}</div>
+          <div><div class="sect">Current work</div>${e.current_work.length ? `<ul class="plain">${e.current_work.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : `<span class="muted">Nothing in progress</span>`}</div>
+          ${e.blockers.length ? `<div><div class="sect">Blockers</div><ul class="plain bl">${e.blockers.map(w => `<li>${esc(w)}</li>`).join("")}</ul></div>` : ""}
+          <div class="foot"><button class="btn small" data-sum="${e.id}">✦ Summarize</button><span class="muted">Open sheet →</span></div>
+        </div>
       </div>`).join("")}</div>`
-    : `<div class="sheetwrap"><div class="empty">No team members yet. Open the ⚙️ Team tab to add people.</div></div>`}`;
+    : `<div class="sheetwrap"><div class="empty">No team members yet. Open the Team tab to add people.</div></div>`}`;
+  $("#sumTeam").onclick = () => summarize(null);
   document.querySelectorAll(".ecard").forEach(r => r.onclick = () => { tab = r.dataset.id; render(); });
+  document.querySelectorAll("[data-sum]").forEach(b => b.onclick = e => { e.stopPropagation(); summarize(+b.dataset.sum); });
 }
 
 async function renderTeam() {
   $("#view").innerHTML = `
-    <div class="sheethead"><div><h2>Manage team · ${esc(team.name)}</h2><small>Add or remove people. Removing someone also deletes their tasks.</small></div></div>
+    <div class="pagehead"><div class="grow"><h2>Team</h2><small>${esc(team.name)} · add or remove people. Removing someone also deletes their tasks.</small></div></div>
     <div class="sheetwrap"><table class="teamtable"><thead><tr><th>Name</th><th>Position</th><th>Role</th><th></th></tr></thead><tbody>
-      ${team.members.map(m => `<tr><td class="ro"><span style="display:inline-flex;align-items:center;gap:10px">${avatar(m.name)}<b>${esc(m.name)}</b></span></td>
-        <td class="ro">${esc(m.position)}</td><td class="ro"><span class="chip ${m.role === "manager" ? "" : "prog"}">${m.role === "manager" ? "Leader" : "Employee"}</span></td>
-        <td class="ro">${m.role === "employee" ? `<button class="btn danger small" data-rm="${m.id}" data-name="${esc(m.name)}">Remove</button>` : ""}</td></tr>`).join("")}
+      ${team.members.map(m => `<tr><td class="ro"><span style="display:inline-flex;align-items:center;gap:10px">${avatar(m, "sm")}<b>${esc(m.name)}</b></span></td>
+        <td class="ro">${esc(m.position)}</td><td class="ro"><span class="chip ${m.role === "manager" ? "ink" : ""}">${m.role === "manager" ? "Leader" : "Employee"}</span></td>
+        <td class="ro" style="text-align:right">${m.role === "employee" ? `<button class="btn small danger" data-rm="${m.id}" data-name="${esc(m.name)}">Remove</button>` : ""}</td></tr>`).join("")}
     </tbody></table>
-    <div class="addmember"><input id="am-name" placeholder="New member name"><input id="am-pos" placeholder="Position"><button class="btn" id="am-add">+ Add member</button></div></div>`;
+    <div class="addmember"><input id="am-name" placeholder="New member name"><input id="am-pos" placeholder="Position"><button class="btn solid" id="am-add">+ Add member</button></div></div>`;
   $("#am-add").onclick = async () => {
     const name = $("#am-name").value.trim(); if (!name) return toast("Enter a name");
     await api("/members", { method: "POST", body: JSON.stringify({ name, position: $("#am-pos").value.trim() }) });
-    await loadConfig(); selectTeam(team.id, me.id); tab = "team"; render(); toast("Member added ✓");
+    await loadConfig(); selectTeam(team.id, me.id); tab = "team"; render(); toast("Member added");
   };
   document.querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => {
     if (!confirm(`Remove ${b.dataset.name} and all their tasks?`)) return;
@@ -306,28 +353,31 @@ async function renderSheet(empId) {
   const sel = (arr, v) => arr.map(o => `<option ${o === v ? "selected" : ""}>${o}</option>`).join("");
   const open = tasks.filter(t => t.status !== "Done").length;
   $("#view").innerHTML = `
-    <div class="sheethead">${avatar(person.name, "lg")}<div><h2>${esc(person.name)}</h2><small>${esc(person.position || "Team member")} · ${open} open · ${tasks.length - open} done</small></div></div>
-    <div class="sheetwrap"><table><thead><tr><th style="width:24%">Task</th><th style="width:115px">Priority</th><th style="width:150px">Deadline</th><th style="width:150px">Status</th><th style="width:170px">Progress</th><th style="width:20%">Blocker</th><th style="width:20%">Remarks</th>${isM ? "<th></th>" : ""}</tr></thead>
+    <div class="banner mtint" style="${mstyle(person.id)}">${avatar(person, "lg")}
+      <div class="grow"><h2>${esc(person.name)}</h2><small>${esc(person.position || "Team member")} · ${open} open · ${tasks.length - open} done</small></div>
+      <button class="btn solid" id="sumOne">✦ Summarize</button></div>
+    <div class="sheetwrap"><table><thead><tr><th style="width:24%">Task</th><th>Priority</th><th>Deadline</th><th>Status</th><th>Progress</th><th style="width:20%">Blocker</th><th style="width:20%">Remarks</th>${isM ? "<th></th>" : ""}</tr></thead>
     <tbody>${tasks.map(t => `
       <tr data-id="${t.id}" class="${t.overdue ? "overdue" : ""} ${t.status === "Done" ? "done" : ""}">
         <td>${isM ? `<input data-f="title" value="${esc(t.title)}">` : `<div class="ro"><b>${esc(t.title)}</b></div>`}</td>
-        <td>${isM ? `<select data-f="priority" data-v="${t.priority}">${sel(cfg.priorities, t.priority)}</select>` : `<div class="ro"><span class="chip ${t.priority === "High" ? "high" : t.priority === "Medium" ? "med" : ""}">${t.priority}</span></div>`}</td>
+        <td>${isM ? `<select data-f="priority" data-v="${t.priority}">${sel(cfg.priorities, t.priority)}</select>` : `<div class="ro">${t.priority}</div>`}</td>
         <td>${isM ? `<input type="date" data-f="deadline" value="${t.deadline || ""}">` : `<div class="ro">${t.deadline || ""}</div>`}</td>
         <td><select data-f="status" data-v="${t.status}">${sel(cfg.statuses, t.status)}</select></td>
         <td><div class="prog"><input type="range" min="0" max="100" step="5" data-f="progress" value="${t.progress}"><span>${t.progress}%</span></div></td>
         <td><input data-f="blocker" value="${esc(t.blocker)}" placeholder="Any language…"></td>
         <td><input data-f="remarks" value="${esc(t.remarks)}" placeholder="Any language…"></td>
-        ${isM ? `<td class="ro"><button class="iconbtn" data-del title="Delete task">🗑</button></td>` : ""}
-      </tr>`).join("") || `<tr><td colspan="8" class="empty">No tasks yet${isM ? " — add the first one below ⬇" : ""}</td></tr>`}
+        ${isM ? `<td class="ro"><button class="iconbtn" data-del title="Delete task">✕</button></td>` : ""}
+      </tr>`).join("") || `<tr><td colspan="8" class="empty">No tasks yet${isM ? " — add the first one below" : ""}</td></tr>`}
     ${isM ? `<tr class="add">
         <td><input id="nt-title" placeholder="＋ New task…" title="Type in English, हिंदी, मराठी or Hinglish"></td>
         <td><select id="nt-pri" data-v="Medium" onchange="this.dataset.v=this.value">${sel(cfg.priorities, "Medium")}</select></td>
         <td><input type="date" id="nt-date"></td>
         <td colspan="3"><input id="nt-rem" placeholder="Remarks (optional)"></td>
-        <td colspan="2" class="ro"><button class="btn small" id="nt-add">Add task</button></td></tr>` : ""}
+        <td colspan="2" class="ro"><button class="btn solid small" id="nt-add">Add task</button></td></tr>` : ""}
     </tbody></table></div>
-    <p class="hint">Click any cell to edit — it saves automatically. Type in Hindi, Marathi, English or Hinglish: it is stored in English and shown in the language chosen at the top.</p>`;
+    <p class="hint">Click any cell to edit — it saves automatically. Type in Hindi, Marathi, English or Hinglish: it is stored in English. Use Translate (top) to read it in another language.</p>`;
 
+  $("#sumOne").onclick = () => summarize(empId);
   document.querySelectorAll("tbody tr[data-id]").forEach(row => {
     const id = row.dataset.id;
     row.querySelectorAll("[data-f]").forEach(el => {
@@ -336,7 +386,7 @@ async function renderSheet(empId) {
       el.onchange = async () => {
         let v = el.value; if (f === "progress") v = +v;
         toast("Saving…");
-        try { await api(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ [f]: v }) }); toast("Saved ✓"); } catch {}
+        try { await api(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ [f]: v }) }); toast("Saved"); } catch {}
         if (["status", "title", "blocker", "remarks", "deadline"].includes(f)) render(); else if (el.dataset.v) el.dataset.v = v;
       };
     });
@@ -347,10 +397,10 @@ async function renderSheet(empId) {
   if (add) {
     const submit = async () => {
       const title = $("#nt-title").value.trim(); if (!title) return toast("Enter a task");
-      add.disabled = true; toast("Adding (translating)…");
+      add.disabled = true; toast("Adding…");
       try {
         await api("/tasks", { method: "POST", body: JSON.stringify({ employee_id: empId, title, priority: $("#nt-pri").value, deadline: $("#nt-date").value || null, remarks: $("#nt-rem").value }) });
-        toast("Task added ✓");
+        toast("Task added");
       } catch {}
       render();
     };

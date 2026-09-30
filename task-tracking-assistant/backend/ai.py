@@ -94,24 +94,27 @@ def enabled() -> bool:
     return provider() is not None
 
 
-def _request(messages: list[dict]) -> dict:
+def _request(messages: list[dict], json_mode: bool = True) -> dict:
     """Build (url, headers, body) for the configured provider. All three speak the OpenAI chat format."""
     p = provider()
     env = os.environ
     if p == "azure":
         url = (f"{_azure('ENDPOINT')}/openai/deployments/{_azure('DEPLOYMENT')}/chat/completions"
                f"?api-version={_azure('VERSION')}")
-        return {"url": url, "headers": {"api-key": _azure("KEY")},
-                "body": {"messages": messages, "temperature": 0, "response_format": {"type": "json_object"}}}
+        body = {"messages": messages, "temperature": 0}
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
+        return {"url": url, "headers": {"api-key": _azure("KEY")}, "body": body}
     if p == "openai":
         base = env.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
         model, key = env.get("OPENAI_MODEL", "gpt-4o-mini"), env["OPENAI_API_KEY"]
     else:
         base, key = "https://api.groq.com/openai/v1", env["GROQ_API_KEY"]
         model = env.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-    return {"url": f"{base}/chat/completions", "headers": {"Authorization": f"Bearer {key}"},
-            "body": {"model": model, "messages": messages, "temperature": 0,
-                     "response_format": {"type": "json_object"}}}
+    body = {"model": model, "messages": messages, "temperature": 0}
+    if json_mode:
+        body["response_format"] = {"type": "json_object"}
+    return {"url": f"{base}/chat/completions", "headers": {"Authorization": f"Bearer {key}"}, "body": body}
 
 
 def _call(texts: list[str], target: str) -> list[str]:
@@ -165,3 +168,20 @@ def to_english(text: str) -> str:
     if not text:
         return ""
     return translate_many([text], "en")[0]
+
+
+def summarize(facts: str, lang: str, scope: str) -> str:
+    """AI summary of task facts in the chosen language. Raises on failure (caller falls back)."""
+    target = LANGS.get(lang, LANGS["en"])
+    system = (
+        f"You help a team lead understand {scope}. Write the summary in {target}. "
+        "Use ONLY the facts given; never invent tasks, numbers or names. Format: 4 to 7 short lines, each starting with '• '. "
+        "Cover: overall progress, what is done, what is in progress, blockers, and what needs attention (overdue or at-risk work). "
+        "Keep names, product names and technical terms unchanged. "
+        + ("When writing Marathi, Hindi or Hinglish keep common English IT/work terms transliterated. " if lang != "en" else "")
+        + "No headings, no preamble."
+    )
+    req = _request([{"role": "system", "content": system}, {"role": "user", "content": facts}], json_mode=False)
+    r = httpx.post(req["url"], headers=req["headers"], json=req["body"], timeout=45, verify=_verify())
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"].strip()

@@ -9,8 +9,9 @@ Manager can download a **weekly or monthly Excel report**.
 1. Open the app: it asks you to **create a team**: team name, the leader/manager (name + position) and the employees (name + position).
    (Or click "Try with sample data".)
 2. As the leader, open a person's tab and add tasks. Use the **⚙️ Team** tab to add/remove members, and **+ New team** for more teams.
-3. Everything (tasks, blockers, remarks) can be typed in English, Hindi, Marathi or Hinglish. It is saved in English and shown in the language picked at the top.
-4. **⬇ Excel report** downloads the weekly or monthly report for the current team.
+3. English is the default view. The **Translate** button (top) shows task text in मराठी, हिंदी or Hinglish. **✦ Summarize** (team overview and every profile) gives an AI summary of tasks, progress and blockers in the selected language.
+4. Everything (tasks, blockers, remarks) can be typed in English, Hindi, Marathi or Hinglish. It is saved in English and shown in the language picked at the top.
+5. **Report ↓** downloads the weekly or monthly report for the current team.
 
 ## Run
 
