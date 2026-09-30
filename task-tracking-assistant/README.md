@@ -5,6 +5,13 @@ People type tasks / blockers / remarks in **English, Hindi, Marathi or Hinglish*
 (original text kept) and shown in any of the four languages via the language dropdown.
 Manager can download a **weekly or monthly Excel report**.
 
+## First use
+1. Open the app: it asks you to **create a team**: team name, the leader/manager (name + position) and the employees (name + position).
+   (Or click "Try with sample data".)
+2. As the leader, open a person's tab and add tasks. Use the **⚙️ Team** tab to add/remove members, and **+ New team** for more teams.
+3. Everything (tasks, blockers, remarks) can be typed in English, Hindi, Marathi or Hinglish. It is saved in English and shown in the language picked at the top.
+4. **⬇ Excel report** downloads the weekly or monthly report for the current team.
+
 ## Run
 
 ```bash
@@ -16,8 +23,8 @@ uvicorn backend.main:app --reload
 Open http://localhost:8000. Without an API key the app still works; text is just not translated.
 
 The demo has no login: use the **Logged in as** dropdown to switch between the manager and employees.
-Employees see only their own sheet and can only update status, progress, blocker and remarks.
-Sample data is seeded on first run into `tracker.db` (delete it to reset).
+Each team is isolated. Employees see only their own sheet and can only update status, progress, blocker and remarks.
+Data is stored in `tracker.db` (delete it, with the server stopped, to start over).
 
 ## API
 `GET /api/config` · `GET /api/overview` · `GET /api/employees/{id}/tasks?lang=` · `POST /api/tasks` ·

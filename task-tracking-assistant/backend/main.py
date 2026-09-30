@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import ai, report
-from .db import conn, init_db
+from .db import conn, create_team, init_db, seed_sample
 
 app = FastAPI(title="Task Tracking Assistant")
 STATIC = Path(__file__).resolve().parent.parent / "static"
@@ -56,27 +56,97 @@ def task_view(rows, lang):
     return rows
 
 
+def require_manager(u):
+    if u["role"] != "manager":
+        raise HTTPException(403, "Managers only")
+
+
+def employee_in_team(c, emp_id, team_id):
+    e = c.execute("SELECT * FROM users WHERE id=? AND team_id=? AND role='employee'", (emp_id, team_id)).fetchone()
+    if not e:
+        raise HTTPException(404, "No such employee in your team")
+    return e
+
+
 @app.get("/api/config")
 def config():
     with conn() as c:
-        users = [dict(u) for u in c.execute("SELECT * FROM users ORDER BY id")]
-    return {"users": users, "statuses": STATUSES, "priorities": PRIORITIES,
+        teams = []
+        for t in c.execute("SELECT * FROM teams ORDER BY id"):
+            members = [dict(u) for u in c.execute(
+                "SELECT id,name,role,position FROM users WHERE team_id=? ORDER BY role DESC, id", (t["id"],))]
+            teams.append({"id": t["id"], "name": t["name"], "members": members})
+    return {"teams": teams, "statuses": STATUSES, "priorities": PRIORITIES,
             "languages": {"en": "English", "mr": "मराठी", "hi": "हिंदी", "hinglish": "Hinglish"},
             "ai_enabled": ai.enabled()}
 
 
+class Member(BaseModel):
+    name: str = Field("", max_length=80)
+    position: str = Field("", max_length=80)
+
+
+class TeamIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    leader_name: str = Field(min_length=1, max_length=80)
+    leader_position: str = Field("Team Lead", max_length=80)
+    members: list[Member] = []
+
+
+@app.post("/api/teams")
+def add_team(t: TeamIn, x_user_id: Optional[int] = Header(None)):
+    """First team can be created by anyone (initial setup). After that only a manager can add teams."""
+    with conn() as c:
+        if c.execute("SELECT COUNT(*) FROM teams").fetchone()[0]:
+            require_manager(current_user(x_user_id))
+        members = [(m.name.strip(), m.position.strip()) for m in t.members if m.name.strip()]
+        tid, lid, _ = create_team(c, t.name.strip(), t.leader_name.strip(), t.leader_position.strip(), members)
+    return {"team_id": tid, "leader_id": lid}
+
+
+@app.post("/api/sample-team")
+def sample_team():
+    with conn() as c:
+        if c.execute("SELECT COUNT(*) FROM teams").fetchone()[0]:
+            raise HTTPException(409, "A team already exists")
+        return {"team_id": seed_sample(c)}
+
+
+@app.post("/api/members")
+def add_member(m: Member, x_user_id: Optional[int] = Header(None)):
+    u = current_user(x_user_id)
+    require_manager(u)
+    if not m.name.strip():
+        raise HTTPException(422, "Name required")
+    with conn() as c:
+        uid = c.execute("INSERT INTO users(name,role,team_id,position) VALUES(?,?,?,?)",
+                        (m.name.strip(), "employee", u["team_id"], m.position.strip())).lastrowid
+    return {"id": uid}
+
+
+@app.delete("/api/members/{emp_id}")
+def remove_member(emp_id: int, x_user_id: Optional[int] = Header(None)):
+    u = current_user(x_user_id)
+    require_manager(u)
+    with conn() as c:
+        employee_in_team(c, emp_id, u["team_id"])
+        c.execute("DELETE FROM tasks WHERE employee_id=?", (emp_id,))
+        c.execute("DELETE FROM users WHERE id=?", (emp_id,))
+    return {"ok": True}
+
+
 @app.get("/api/overview")
 def overview(lang: str = "en", x_user_id: Optional[int] = Header(None)):
-    if current_user(x_user_id)["role"] != "manager":
-        raise HTTPException(403, "Managers only")
+    u = current_user(x_user_id)
+    require_manager(u)
     out = []
     with conn() as c:
-        for e in c.execute("SELECT * FROM users WHERE role='employee' ORDER BY id").fetchall():
+        for e in c.execute("SELECT * FROM users WHERE role='employee' AND team_id=? ORDER BY id", (u["team_id"],)).fetchall():
             tasks = task_view(c.execute("SELECT * FROM tasks WHERE employee_id=? ORDER BY deadline", (e["id"],)), lang)
             open_t = [t for t in tasks if t["status"] != "Done"]
             blocked = [t for t in open_t if t["blocker_en"] or t["status"] == "Blocked"]
             out.append({
-                "id": e["id"], "name": e["name"], "total": len(tasks),
+                "id": e["id"], "name": e["name"], "position": e["position"], "total": len(tasks),
                 "done": sum(t["status"] == "Done" for t in tasks),
                 "in_progress": sum(t["status"] == "In Progress" for t in tasks),
                 "blocked": sum(t["status"] == "Blocked" for t in tasks),
@@ -94,6 +164,7 @@ def employee_tasks(emp_id: int, lang: str = "en", x_user_id: Optional[int] = Hea
     if u["role"] != "manager" and u["id"] != emp_id:
         raise HTTPException(403, "You can only see your own sheet")
     with conn() as c:
+        employee_in_team(c, emp_id, u["team_id"])
         rows = c.execute("SELECT * FROM tasks WHERE employee_id=? ORDER BY "
                          "CASE status WHEN 'Done' THEN 1 ELSE 0 END, deadline, id", (emp_id,)).fetchall()
     return task_view(rows, lang)
@@ -109,12 +180,13 @@ class NewTask(BaseModel):
 
 @app.post("/api/tasks")
 def add_task(t: NewTask, x_user_id: Optional[int] = Header(None)):
-    if current_user(x_user_id)["role"] != "manager":
-        raise HTTPException(403, "Managers only")
+    u = current_user(x_user_id)
+    require_manager(u)
     if t.priority not in PRIORITIES:
         raise HTTPException(422, "Bad priority")
     ts = now()
     with conn() as c:
+        employee_in_team(c, t.employee_id, u["team_id"])
         cur = c.execute(
             """INSERT INTO tasks(employee_id,title,title_orig,priority,deadline,remarks,remarks_orig,created_at,updated_at)
                VALUES(?,?,?,?,?,?,?,?,?)""",
@@ -139,9 +211,12 @@ def patch_task(task_id: int, p: TaskPatch, x_user_id: Optional[int] = Header(Non
     u = current_user(x_user_id)
     changes = p.model_dump(exclude_unset=True)
     with conn() as c:
-        t = c.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
-        if not t:
+        t = c.execute("SELECT t.*, u.team_id FROM tasks t JOIN users u ON u.id=t.employee_id WHERE t.id=?",
+                      (task_id,)).fetchone()
+        if not t or t["team_id"] != u["team_id"]:
             raise HTTPException(404, "No such task")
+        if changes.get("employee_id") is not None:
+            employee_in_team(c, changes["employee_id"], u["team_id"])
         if u["role"] != "manager":
             if t["employee_id"] != u["id"]:
                 raise HTTPException(403, "Not your task")
@@ -170,21 +245,22 @@ def patch_task(task_id: int, p: TaskPatch, x_user_id: Optional[int] = Header(Non
 
 @app.delete("/api/tasks/{task_id}")
 def delete_task(task_id: int, x_user_id: Optional[int] = Header(None)):
-    if current_user(x_user_id)["role"] != "manager":
-        raise HTTPException(403, "Managers only")
+    u = current_user(x_user_id)
+    require_manager(u)
     with conn() as c:
-        c.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+        c.execute("DELETE FROM tasks WHERE id=? AND employee_id IN (SELECT id FROM users WHERE team_id=?)",
+                  (task_id, u["team_id"]))
     return {"ok": True}
 
 
 @app.get("/api/report")
 def download_report(period: str = "weekly", x_user_id: Optional[int] = Header(None), user: Optional[int] = None):
     # `user` query param lets a plain browser download link identify the caller (no login in demo)
-    if current_user(x_user_id or user)["role"] != "manager":
-        raise HTTPException(403, "Managers only")
+    u = current_user(x_user_id or user)
+    require_manager(u)
     if period not in ("weekly", "monthly"):
         raise HTTPException(422, "period must be weekly or monthly")
-    data, name = report.build(period)
+    data, name = report.build(period, u["team_id"])
     return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
 

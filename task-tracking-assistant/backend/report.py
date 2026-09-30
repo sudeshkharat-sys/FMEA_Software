@@ -23,7 +23,7 @@ def _widths(ws, widths):
         ws.column_dimensions[get_column_letter(i)].width = w
 
 
-def build(period: str) -> tuple[bytes, str]:
+def build(period: str, team_id: int) -> tuple[bytes, str]:
     days = 7 if period == "weekly" else 30
     since = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
     today = date.today().isoformat()
@@ -37,7 +37,9 @@ def build(period: str) -> tuple[bytes, str]:
     _style_header(summary, 3)
 
     with conn() as c:
-        emps = c.execute("SELECT * FROM users WHERE role='employee' ORDER BY id").fetchall()
+        team = c.execute("SELECT name FROM teams WHERE id=?", (team_id,)).fetchone()["name"]
+        summary["A1"] = f"{team} - {period.capitalize()} report"
+        emps = c.execute("SELECT * FROM users WHERE role='employee' AND team_id=? ORDER BY id", (team_id,)).fetchall()
         for e in emps:
             # tasks touched in the period, or still open
             tasks = c.execute(
@@ -51,7 +53,7 @@ def build(period: str) -> tuple[bytes, str]:
             overdue = sum(bool(t["deadline"]) and t["deadline"] < today and t["status"] != "Done" for t in tasks)
             avg = round(sum(t["progress"] for t in tasks) / n) if n else 0
             blockers = "; ".join(t["blocker"] for t in tasks if t["blocker"] and t["status"] != "Done")
-            summary.append([e["name"], n, done, prog, blocked, overdue, avg, blockers])
+            summary.append([f'{e["name"]} ({e["position"]})' if e["position"] else e["name"], n, done, prog, blocked, overdue, avg, blockers])
 
             ws = wb.create_sheet(e["name"][:31])
             ws.append(COLS)

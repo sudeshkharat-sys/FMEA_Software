@@ -5,8 +5,13 @@ from pathlib import Path
 DB_PATH = Path(__file__).resolve().parent.parent / "tracker.db"
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS teams(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS users(
-  id INTEGER PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('manager','employee'))
+  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK(role IN ('manager','employee')),
+  team_id INTEGER REFERENCES teams(id), position TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS tasks(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,32 +40,48 @@ def conn():
 def init_db():
     with conn() as c:
         c.executescript(SCHEMA)
-        if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
-            seed(c)
+        cols = {r["name"] for r in c.execute("PRAGMA table_info(users)")}
+        if "team_id" not in cols:  # older demo DB: add columns, put existing people in a team
+            c.execute("ALTER TABLE users ADD COLUMN team_id INTEGER")
+            c.execute("ALTER TABLE users ADD COLUMN position TEXT DEFAULT ''")
+        orphans = c.execute("SELECT COUNT(*) FROM users WHERE team_id IS NULL").fetchone()[0]
+        if orphans:
+            tid = c.execute("INSERT INTO teams(name,created_at) VALUES('Demo Team',?)",
+                            (datetime.now().isoformat(timespec="seconds"),)).lastrowid
+            c.execute("UPDATE users SET team_id=? WHERE team_id IS NULL", (tid,))
 
 
-def seed(c):
-    c.executemany(
-        "INSERT INTO users(id,name,role) VALUES(?,?,?)",
-        [(1, "Manager", "manager"), (2, "Sudesh", "employee"),
-         (3, "Priya", "employee"), (4, "Rahul", "employee")],
-    )
+def create_team(c, name, leader_name, leader_position, members):
+    """Insert a team, its leader (role manager) and members (role employee). Returns (team_id, leader_id, member_ids)."""
+    tid = c.execute("INSERT INTO teams(name,created_at) VALUES(?,?)",
+                    (name, datetime.now().isoformat(timespec="seconds"))).lastrowid
+    lid = c.execute("INSERT INTO users(name,role,team_id,position) VALUES(?,?,?,?)",
+                    (leader_name, "manager", tid, leader_position)).lastrowid
+    mids = [c.execute("INSERT INTO users(name,role,team_id,position) VALUES(?,?,?,?)",
+                      (n, "employee", tid, p)).lastrowid for n, p in members]
+    return tid, lid, mids
+
+
+def seed_sample(c):
+    tid, _, (sudesh, priya, rahul) = create_team(
+        c, "Sample Team", "Anita", "Engineering Manager",
+        [("Sudesh", "Software Engineer"), ("Priya", "Quality Engineer"), ("Rahul", "Production Engineer")])
     today = date.today()
     d = lambda n: (today + timedelta(days=n)).isoformat()
     now = datetime.now().isoformat(timespec="seconds")
     # (emp, title_en, title_orig, priority, deadline, status, progress, blocker_en, blocker_orig, remarks_en, remarks_orig)
     rows = [
-        (2, "PFMEA card integration", "PFMEA card integration", "High", d(2), "In Progress", 70,
+        (sudesh, "PFMEA card integration", "PFMEA card integration", "High", d(2), "In Progress", 70,
          "Chakan Excel format is failing", "Chakan Excel format fail ho raha hai", "UI is done, backend working", "UI ho gaya, backend chal raha hai"),
-        (2, "Test with sample files", "सॅम्पल फाईल्ससह टेस्टिंग करा", "Medium", d(4), "To Do", 0, "", "", "", ""),
-        (2, "Deploy to server", "Server var deploy karne", "Low", d(9), "To Do", 0,
+        (sudesh, "Test with sample files", "सॅम्पल फाईल्ससह टेस्टिंग करा", "Medium", d(4), "To Do", 0, "", "", "", ""),
+        (sudesh, "Deploy to server", "Server var deploy karne", "Low", d(9), "To Do", 0,
          "Waiting for deployment access", "डिप्लॉयमेंट access ची वाट पाहत आहे", "", ""),
-        (3, "Prepare weekly quality report", "साप्ताहिक क्वालिटी रिपोर्ट तयार करा", "High", d(1), "In Progress", 40, "", "", "Data collected, formatting pending", "डेटा जमा झाला, फॉरमॅटिंग बाकी है"),
-        (3, "Update control plan sheet", "Control plan sheet update karna", "Medium", d(-1), "In Progress", 50, "", "", "", ""),
-        (3, "Supplier audit checklist", "सप्लायर ऑडिट चेकलिस्ट", "Low", d(6), "Done", 100, "", "", "Completed and shared", "पूर्ण करके शेअर किया"),
-        (4, "Fix traceability barcode scan", "बारकोड स्कॅन मधील बग दुरुस्त करा", "High", d(3), "Blocked", 30,
+        (priya, "Prepare weekly quality report", "साप्ताहिक क्वालिटी रिपोर्ट तयार करा", "High", d(1), "In Progress", 40, "", "", "Data collected, formatting pending", "डेटा जमा झाला, फॉरमॅटिंग बाकी है"),
+        (priya, "Update control plan sheet", "Control plan sheet update karna", "Medium", d(-1), "In Progress", 50, "", "", "", ""),
+        (priya, "Supplier audit checklist", "सप्लायर ऑडिट चेकलिस्ट", "Low", d(6), "Done", 100, "", "", "Completed and shared", "पूर्ण करके शेअर किया"),
+        (rahul, "Fix traceability barcode scan", "बारकोड स्कॅन मधील बग दुरुस्त करा", "High", d(3), "Blocked", 30,
          "Scanner hardware not available", "स्कॅनर हार्डवेअर उपलब्ध नाही", "", ""),
-        (4, "Line 2 data entry", "Line 2 ka data entry", "Medium", d(5), "In Progress", 60, "", "", "", ""),
+        (rahul, "Line 2 data entry", "Line 2 ka data entry", "Medium", d(5), "In Progress", 60, "", "", "", ""),
     ]
     c.executemany(
         """INSERT INTO tasks(employee_id,title,title_orig,priority,deadline,status,progress,
@@ -68,3 +89,4 @@ def seed(c):
            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         [r + (now, now) for r in rows],
     )
+    return tid
