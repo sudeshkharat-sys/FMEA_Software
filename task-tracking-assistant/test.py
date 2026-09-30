@@ -34,4 +34,4 @@ except httpx.HTTPStatusError as e:
 except Exception as e:
     sys.exit(f"FAIL: {type(e).__name__}: {e}")
 
-print("PASS: Groq key works and translation is working.")
+print("PASS: the LLM connection works and translation is working.")

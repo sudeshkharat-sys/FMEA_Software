@@ -119,7 +119,9 @@ def _call(texts: list[str], target: str) -> list[str]:
     system = (
         f"You translate workplace task-tracking text into {target}. The input may be in Hindi, Marathi, "
         "English or Hinglish (or a mix). Keep names, product names, codes and technical terms unchanged. "
-        "Be concise and natural. If a text is already in the target language return it unchanged. "
+        "Be concise and natural, the way colleagues in an Indian office actually talk. When translating INTO Marathi, Hindi or Hinglish, keep common English IT/work terms "
+        "(deployment, server, backend, UI, access, report, Excel, format, testing, blocker, etc.) in transliterated form instead of replacing them with formal textbook words. "
+        "If a text is already in the target language return it unchanged. "
         'Reply ONLY with JSON: {"translations": [...]} with exactly one string per input, same order.'
     )
     req = _request([{"role": "system", "content": system},
