@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Tracker</title>
+<style>
+  :root { --bg:#f3f4f6; --card:#fff; --line:#d0d7de; --head:#1f4e78; --txt:#1f2328; --mut:#656d76;
+          --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; --accent:#0969da; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0d1117; --card:#161b22; --line:#30363d; --head:#1f4e78; --txt:#e6edf3; --mut:#8b949e; --accent:#58a6ff; }
+  }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--txt); font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; }
+  header { background:var(--head); color:#fff; padding:8px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0 auto 0 0; }
+  header label { font-size:12px; opacity:.85; display:flex; align-items:center; gap:6px; }
+  select,input,button { font:inherit; color:var(--txt); background:var(--card); border:1px solid var(--line); border-radius:4px; padding:4px 6px; }
+  button { cursor:pointer; } button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  main { flex:1; overflow:auto; padding:16px; }
+  #notice { display:none; margin:0 0 12px; padding:8px 12px; border-radius:4px; background:#fff8c5; color:#4d2d00; border:1px solid #d4a72c; }
+  table { border-collapse:collapse; background:var(--card); width:100%; min-width:900px; }
+  th,td { border:1px solid var(--line); padding:0; vertical-align:top; }
+  th { background:var(--head); color:#fff; text-align:left; padding:6px 8px; font-weight:600; position:sticky; top:0; z-index:1; }
+  td.ro { padding:6px 8px; }
+  td input:not([type=range]),td select { width:100%; border:0; border-radius:0; background:transparent; padding:6px 8px; }
+  td input:focus,td select:focus { outline:2px solid var(--accent); outline-offset:-2px; background:var(--card); }
+  tr.overdue td:nth-child(3) input { color:var(--bad); font-weight:600; }
+  tr.overview-row { cursor:pointer; } tr.overview-row:hover td { background:rgba(9,105,218,.08); }
+  .bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; min-width:70px; }
+  .bar i { display:block; height:100%; background:var(--ok); }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; border:1px solid var(--line); }
+  .pill.bad { color:var(--bad); border-color:var(--bad); } .pill.ok { color:var(--ok); border-color:var(--ok); } .pill.warn { color:var(--warn); border-color:var(--warn); }
+  ul.plain { margin:0; padding-left:16px; }
+  .prog { display:flex; align-items:center; gap:6px; padding:6px 8px; } .prog input[type=range]{ flex:1; padding:0; border:0; min-width:70px; }
+  .add td { background:rgba(9,105,218,.06); }
+  .hint { color:var(--mut); font-size:12px; margin:8px 0; }
+  .tabs { display:flex; gap:2px; padding:0 12px; background:var(--card); border-top:1px solid var(--line); overflow-x:auto; }
+  .tab { padding:8px 16px; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--bg); cursor:pointer; white-space:nowrap; }
+  .tab.active { background:var(--card); border-top:2px solid var(--accent); font-weight:600; margin-top:-1px; }
+  #toast { position:fixed; right:16px; bottom:56px; background:#1f2328; color:#fff; padding:6px 12px; border-radius:4px; display:none; }
+  .empty { padding:24px; text-align:center; color:var(--mut); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Task Tracker</h1>
+  <label>Logged in as <select id="user"></select></label>
+  <label>Language <select id="lang"></select></label>
+  <span id="reportBox" style="display:none">
+    <label>Report <select id="period"><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
+    <button class="primary" id="download">Download Excel</button></label>
+  </span>
+</header>
+<main>
+  <div id="notice"></div>
+  <div id="view"></div>
+</main>
+<div class="tabs" id="tabs"></div>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let cfg, me, tab = "overview";
+let lang = localStorage.getItem("lang") || "en";
+
+async function api(path, opts = {}) {
+  const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", "X-User-Id": me?.id ?? "", ...(opts.headers||{}) } });
+  if (!r.ok) { toast((await r.json().catch(()=>({}))).detail || "Error"); throw new Error(r.status); }
+  return r.json();
+}
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = "none", 2200); }
+
+async function init() {
+  cfg = await (await fetch("/api/config")).json();
+  $("#user").innerHTML = cfg.users.map(u => `<option value="${u.id}">${esc(u.name)} (${u.role})</option>`).join("");
+  $("#lang").innerHTML = Object.entries(cfg.languages).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+  $("#lang").value = lang;
+  const saved = +localStorage.getItem("uid");
+  me = cfg.users.find(u => u.id === saved) || cfg.users[0];
+  $("#user").value = me.id;
+  if (!cfg.ai_enabled) { const n = $("#notice"); n.style.display = "block";
+    n.textContent = "AI translation is OFF (no GROQ_API_KEY set). Text is saved and shown as typed. See README to enable it."; }
+  $("#user").onchange = e => { me = cfg.users.find(u => u.id == e.target.value); localStorage.setItem("uid", me.id); tab = me.role === "manager" ? "overview" : String(me.id); render(); };
+  $("#lang").onchange = e => { lang = e.target.value; localStorage.setItem("lang", lang); render(); };
+  $("#download").onclick = () => location.href = `/api/report?period=${$("#period").value}&user=${me.id}`;
+  tab = me.role === "manager" ? "overview" : String(me.id);
+  render();
+}
+
+function renderTabs() {
+  const isM = me.role === "manager";
+  const emps = cfg.users.filter(u => u.role === "employee" && (isM || u.id === me.id));
+  const items = (isM ? [["overview", "📊 Overview"]] : []).concat(emps.map(e => [String(e.id), "👤 " + e.name]));
+  $("#tabs").innerHTML = items.map(([id, label]) => `<div class="tab ${id === tab ? "active" : ""}" data-id="${id}">${esc(label)}</div>`).join("");
+  document.querySelectorAll(".tab").forEach(t => t.onclick = () => { tab = t.dataset.id; render(); });
+}
+
+async function render() {
+  $("#reportBox").style.display = me.role === "manager" ? "" : "none";
+  renderTabs();
+  $("#view").innerHTML = '<div class="empty">Loading…</div>';
+  if (tab === "overview" && me.role === "manager") await renderOverview(); else await renderSheet(+tab);
+}
+
+async function renderOverview() {
+  const data = await api(`/overview?lang=${lang}`);
+  $("#view").innerHTML = `
+    <table><thead><tr><th>Employee</th><th>Progress</th><th>Tasks</th><th>Done</th><th>In progress</th><th>Blocked</th><th>Overdue</th><th>Current work</th><th>Blockers</th></tr></thead>
+    <tbody>${data.map(e => `
+      <tr class="overview-row" data-id="${e.id}">
+        <td class="ro"><b>${esc(e.name)}</b></td>
+        <td class="ro"><div class="bar"><i style="width:${e.avg_progress}%"></i></div>${e.avg_progress}%</td>
+        <td class="ro">${e.total}</td><td class="ro">${e.done}</td><td class="ro">${e.in_progress}</td>
+        <td class="ro">${e.blocked ? `<span class="pill bad">${e.blocked}</span>` : 0}</td>
+        <td class="ro">${e.overdue ? `<span class="pill bad">${e.overdue}</span>` : 0}</td>
+        <td class="ro">${e.current_work.length ? `<ul class="plain">${e.current_work.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : "–"}</td>
+        <td class="ro">${e.blockers.length ? `<ul class="plain">${e.blockers.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : "–"}</td>
+      </tr>`).join("")}</tbody></table>
+    <p class="hint">Brief view. Click an employee row (or their tab below) to see and edit the full sheet.</p>`;
+  document.querySelectorAll(".overview-row").forEach(r => r.onclick = () => { tab = r.dataset.id; render(); });
+}
+
+async function renderSheet(empId) {
+  const tasks = await api(`/employees/${empId}/tasks?lang=${lang}`);
+  const isM = me.role === "manager";
+  const sel = (arr, v) => arr.map(o => `<option ${o === v ? "selected" : ""}>${o}</option>`).join("");
+  const name = cfg.users.find(u => u.id === empId).name;
+  $("#view").innerHTML = `
+    <h3 style="margin:0 0 8px">${esc(name)}'s sheet</h3>
+    <table><thead><tr><th style="width:24%">Task</th><th style="width:100px">Priority</th><th style="width:140px">Deadline</th><th style="width:120px">Status</th><th style="width:150px">Progress</th><th style="width:20%">Blocker</th><th style="width:20%">Remarks</th>${isM ? "<th></th>" : ""}</tr></thead>
+    <tbody>${tasks.map(t => `
+      <tr data-id="${t.id}" class="${t.overdue ? "overdue" : ""}">
+        <td>${isM ? `<input data-f="title" value="${esc(t.title)}">` : `<div class="ro">${esc(t.title)}</div>`}</td>
+        <td>${isM ? `<select data-f="priority">${sel(cfg.priorities, t.priority)}</select>` : `<div class="ro">${t.priority}</div>`}</td>
+        <td>${isM ? `<input type="date" data-f="deadline" value="${t.deadline || ""}">` : `<div class="ro">${t.deadline || ""}</div>`}</td>
+        <td><select data-f="status">${sel(cfg.statuses, t.status)}</select></td>
+        <td><div class="prog"><input type="range" min="0" max="100" step="5" data-f="progress" value="${t.progress}"><span>${t.progress}%</span></div></td>
+        <td><input data-f="blocker" value="${esc(t.blocker)}" placeholder="type in any language"></td>
+        <td><input data-f="remarks" value="${esc(t.remarks)}" placeholder="type in any language"></td>
+        ${isM ? `<td class="ro"><button data-del title="Delete task">🗑</button></td>` : ""}
+      </tr>`).join("") || `<tr><td colspan="8" class="empty">No tasks yet</td></tr>`}
+    ${isM ? `<tr class="add">
+        <td><input id="nt-title" placeholder="+ New task (any language: English / हिंदी / मराठी / Hinglish)"></td>
+        <td><select id="nt-pri">${sel(cfg.priorities, "Medium")}</select></td>
+        <td><input type="date" id="nt-date"></td>
+        <td colspan="3"><input id="nt-rem" placeholder="Remarks (optional)"></td>
+        <td colspan="2" class="ro"><button class="primary" id="nt-add">Add task</button></td></tr>` : ""}
+    </tbody></table>
+    <p class="hint">Click any cell to edit — it saves automatically. Anything you type in Hindi, Marathi, English or Hinglish is stored in English and shown in the language chosen at the top.</p>`;
+
+  document.querySelectorAll("tbody tr[data-id]").forEach(row => {
+    const id = row.dataset.id;
+    row.querySelectorAll("[data-f]").forEach(el => {
+      const f = el.dataset.f;
+      if (f === "progress") el.oninput = () => el.nextElementSibling.textContent = el.value + "%";
+      el.onchange = async () => {
+        let v = el.value; if (f === "progress") v = +v;
+        toast("Saving…");
+        try { await api(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ [f]: v }) }); toast("Saved ✓"); } catch {}
+        if (["status", "title", "blocker", "remarks", "deadline"].includes(f)) render();
+      };
+    });
+    const del = row.querySelector("[data-del]");
+    if (del) del.onclick = async () => { if (confirm("Delete this task?")) { await api(`/tasks/${id}`, { method: "DELETE" }); render(); } };
+  });
+  const add = $("#nt-add");
+  if (add) add.onclick = async () => {
+    const title = $("#nt-title").value.trim(); if (!title) return toast("Enter a task");
+    add.disabled = true; toast("Adding (translating)…");
+    try {
+      await api("/tasks", { method: "POST", body: JSON.stringify({ employee_id: empId, title, priority: $("#nt-pri").value, deadline: $("#nt-date").value || null, remarks: $("#nt-rem").value }) });
+      toast("Task added ✓");
+    } catch {}
+    render();
+  };
+}
+init();
+</script>
+</body>
+</html>
