@@ -11,6 +11,8 @@ if not key:
     sys.exit("FAIL: GROQ_API_KEY is not set. Put it in task-tracking-assistant/.env")
 print(f"Key found ({key[:6]}...{key[-4:]}), model: {os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile')}\n")
 
+print("Certificate trust:", ai.trust_mode(), "\n")
+
 samples = [
     "शुक्रवार तक रिपोर्ट तयार करा",                 # Marathi
     "UI ho gaya, backend mein ek Excel format fail ho raha hai",  # Hinglish

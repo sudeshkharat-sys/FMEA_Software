@@ -23,14 +23,27 @@ if _env.exists():
 
 
 def _verify():
-    """Use the OS certificate store (works behind corporate proxies); fall back to the default bundle."""
-    try:
-        import ssl
+    """TLS trust: custom CA file (GROQ_CA_BUNDLE) > OS certificate store (truststore) > default bundle."""
+    import ssl
 
+    ca = os.environ.get("GROQ_CA_BUNDLE")
+    if ca:
+        return ssl.create_default_context(cafile=ca)
+    try:
         import truststore
         return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    except Exception:
+    except ImportError:
         return True
+
+
+def trust_mode() -> str:
+    if os.environ.get("GROQ_CA_BUNDLE"):
+        return f"custom CA file ({os.environ['GROQ_CA_BUNDLE']})"
+    try:
+        import truststore  # noqa: F401
+        return "Windows/OS certificate store (truststore)"
+    except ImportError:
+        return "default Python bundle (truststore NOT installed: run pip install truststore)"
 
 
 def enabled() -> bool:
