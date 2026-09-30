@@ -47,12 +47,30 @@ def trust_mode() -> str:
         return "default Python bundle (truststore NOT installed: run pip install truststore)"
 
 
+def _azure(what: str) -> str | None:
+    """Azure settings. Accepts our names AND the traceability-chatbot names, so its .env lines work as-is."""
+    e = os.environ
+    if what == "KEY":
+        return e.get("AZURE_OPENAI_API_KEY") or e.get("AZURE_API_KEY")
+    if what == "ENDPOINT":  # base URL only; a full ".../openai/deployments/x" URL is trimmed
+        v = e.get("AZURE_OPENAI_ENDPOINT") or e.get("AZURE_CHAT_ENDPOINT") or ""
+        return v.split("/openai")[0].rstrip("/")
+    if what == "DEPLOYMENT":  # explicit name, else the one inside the endpoint URL, else gpt-4o-mini
+        v = e.get("AZURE_OPENAI_DEPLOYMENT") or e.get("AZURE_CHAT_DEPLOYMENT")
+        if v:
+            return v
+        full = e.get("AZURE_OPENAI_ENDPOINT") or e.get("AZURE_CHAT_ENDPOINT") or ""
+        return full.split("/deployments/")[1].split("/")[0] if "/deployments/" in full else "gpt-4o-mini"
+    if what == "VERSION":
+        return e.get("AZURE_OPENAI_API_VERSION") or e.get("AZURE_API_VERSION_CHAT") or "2024-12-01-preview"
+
+
 def provider() -> str | None:
     """Which LLM to use: LLM_PROVIDER if set, else whichever key is present (azure > openai > groq)."""
     p = os.environ.get("LLM_PROVIDER", "").lower()
     if p in ("azure", "openai", "groq"):
         return p
-    if os.environ.get("AZURE_OPENAI_API_KEY"):
+    if _azure("KEY"):
         return "azure"
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
@@ -64,7 +82,7 @@ def provider() -> str | None:
 def describe() -> str:
     p = provider()
     if p == "azure":
-        return f"Azure OpenAI, deployment {os.environ.get('AZURE_OPENAI_DEPLOYMENT', '?')}"
+        return f"Azure OpenAI, deployment {_azure('DEPLOYMENT')}"
     if p == "openai":
         return f"OpenAI-compatible, model {os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')}"
     if p == "groq":
@@ -81,10 +99,9 @@ def _request(messages: list[dict]) -> dict:
     p = provider()
     env = os.environ
     if p == "azure":
-        base = env["AZURE_OPENAI_ENDPOINT"].rstrip("/")
-        url = (f"{base}/openai/deployments/{env['AZURE_OPENAI_DEPLOYMENT']}/chat/completions"
-               f"?api-version={env.get('AZURE_OPENAI_API_VERSION', '2024-06-01')}")
-        return {"url": url, "headers": {"api-key": env["AZURE_OPENAI_API_KEY"]},
+        url = (f"{_azure('ENDPOINT')}/openai/deployments/{_azure('DEPLOYMENT')}/chat/completions"
+               f"?api-version={_azure('VERSION')}")
+        return {"url": url, "headers": {"api-key": _azure("KEY")},
                 "body": {"messages": messages, "temperature": 0, "response_format": {"type": "json_object"}}}
     if p == "openai":
         base = env.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
