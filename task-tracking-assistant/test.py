@@ -29,7 +29,7 @@ try:
 except httpx.HTTPStatusError as e:
     print(f"FAIL: Groq returned HTTP {e.response.status_code}")
     print(e.response.text[:500])
-    print("\n401 = bad key | 429 = rate limit | 400/404 = wrong model name (check GROQ_MODEL)")
+    print("\nSSL certificate error = company network; run: pip install truststore | 401 = bad key | 429 = rate limit | 400/404 = wrong model name (check GROQ_MODEL)")
     sys.exit(1)
 except Exception as e:
     sys.exit(f"FAIL: {type(e).__name__}: {e}")

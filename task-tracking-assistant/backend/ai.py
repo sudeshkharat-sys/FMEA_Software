@@ -22,6 +22,17 @@ if _env.exists():
             os.environ.setdefault(k.strip(), v.strip())
 
 
+def _verify():
+    """Use the OS certificate store (works behind corporate proxies); fall back to the default bundle."""
+    try:
+        import ssl
+
+        import truststore
+        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    except Exception:
+        return True
+
+
 def enabled() -> bool:
     return bool(os.environ.get("GROQ_API_KEY"))
 
@@ -47,6 +58,7 @@ def _call(texts: list[str], target: str) -> list[str]:
             ],
         },
         timeout=30,
+        verify=_verify(),
     )
     r.raise_for_status()
     out = json.loads(r.json()["choices"][0]["message"]["content"])["translations"]
