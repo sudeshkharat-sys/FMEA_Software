@@ -23,10 +23,10 @@ if _env.exists():
 
 
 def _verify():
-    """TLS trust: custom CA file (GROQ_CA_BUNDLE) > OS certificate store (truststore) > default bundle."""
+    """TLS trust: custom CA file (CA_BUNDLE) > OS certificate store (truststore) > default bundle."""
     import ssl
 
-    ca = os.environ.get("GROQ_CA_BUNDLE")
+    ca = os.environ.get("CA_BUNDLE") or os.environ.get("GROQ_CA_BUNDLE")
     if ca:
         return ssl.create_default_context(cafile=ca)
     try:
@@ -37,8 +37,9 @@ def _verify():
 
 
 def trust_mode() -> str:
-    if os.environ.get("GROQ_CA_BUNDLE"):
-        return f"custom CA file ({os.environ['GROQ_CA_BUNDLE']})"
+    ca = os.environ.get("CA_BUNDLE") or os.environ.get("GROQ_CA_BUNDLE")
+    if ca:
+        return f"custom CA file ({ca})"
     try:
         import truststore  # noqa: F401
         return "Windows/OS certificate store (truststore)"
@@ -46,33 +47,67 @@ def trust_mode() -> str:
         return "default Python bundle (truststore NOT installed: run pip install truststore)"
 
 
+def provider() -> str | None:
+    """Which LLM to use: LLM_PROVIDER if set, else whichever key is present (azure > openai > groq)."""
+    p = os.environ.get("LLM_PROVIDER", "").lower()
+    if p in ("azure", "openai", "groq"):
+        return p
+    if os.environ.get("AZURE_OPENAI_API_KEY"):
+        return "azure"
+    if os.environ.get("OPENAI_API_KEY"):
+        return "openai"
+    if os.environ.get("GROQ_API_KEY"):
+        return "groq"
+    return None
+
+
+def describe() -> str:
+    p = provider()
+    if p == "azure":
+        return f"Azure OpenAI, deployment {os.environ.get('AZURE_OPENAI_DEPLOYMENT', '?')}"
+    if p == "openai":
+        return f"OpenAI-compatible, model {os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')}"
+    if p == "groq":
+        return f"Groq, model {os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile')}"
+    return "none"
+
+
 def enabled() -> bool:
-    return bool(os.environ.get("GROQ_API_KEY"))
+    return provider() is not None
+
+
+def _request(messages: list[dict]) -> dict:
+    """Build (url, headers, body) for the configured provider. All three speak the OpenAI chat format."""
+    p = provider()
+    env = os.environ
+    if p == "azure":
+        base = env["AZURE_OPENAI_ENDPOINT"].rstrip("/")
+        url = (f"{base}/openai/deployments/{env['AZURE_OPENAI_DEPLOYMENT']}/chat/completions"
+               f"?api-version={env.get('AZURE_OPENAI_API_VERSION', '2024-06-01')}")
+        return {"url": url, "headers": {"api-key": env["AZURE_OPENAI_API_KEY"]},
+                "body": {"messages": messages, "temperature": 0, "response_format": {"type": "json_object"}}}
+    if p == "openai":
+        base = env.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        model, key = env.get("OPENAI_MODEL", "gpt-4o-mini"), env["OPENAI_API_KEY"]
+    else:
+        base, key = "https://api.groq.com/openai/v1", env["GROQ_API_KEY"]
+        model = env.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    return {"url": f"{base}/chat/completions", "headers": {"Authorization": f"Bearer {key}"},
+            "body": {"model": model, "messages": messages, "temperature": 0,
+                     "response_format": {"type": "json_object"}}}
 
 
 def _call(texts: list[str], target: str) -> list[str]:
-    """Translate a batch of texts into `target` using Groq. Raises on failure."""
+    """Translate a batch of texts into `target`. Raises on failure."""
     system = (
         f"You translate workplace task-tracking text into {target}. The input may be in Hindi, Marathi, "
         "English or Hinglish (or a mix). Keep names, product names, codes and technical terms unchanged. "
         "Be concise and natural. If a text is already in the target language return it unchanged. "
         'Reply ONLY with JSON: {"translations": [...]} with exactly one string per input, same order.'
     )
-    r = httpx.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"},
-        json={
-            "model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": json.dumps({"texts": texts}, ensure_ascii=False)},
-            ],
-        },
-        timeout=30,
-        verify=_verify(),
-    )
+    req = _request([{"role": "system", "content": system},
+                    {"role": "user", "content": json.dumps({"texts": texts}, ensure_ascii=False)}])
+    r = httpx.post(req["url"], headers=req["headers"], json=req["body"], timeout=30, verify=_verify())
     r.raise_for_status()
     out = json.loads(r.json()["choices"][0]["message"]["content"])["translations"]
     if len(out) != len(texts) or not all(isinstance(x, str) for x in out):

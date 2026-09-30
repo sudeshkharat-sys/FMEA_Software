@@ -10,10 +10,10 @@ Manager can download a **weekly or monthly Excel report**.
 ```bash
 cd task-tracking-assistant
 pip install -r requirements.txt
-cp .env.example .env        # paste your free Groq key from https://console.groq.com/keys
+cp .env.example .env        # set ONE provider in .env: OpenAI/GPT-4o-mini, Azure OpenAI, or free Groq
 uvicorn backend.main:app --reload
 ```
-Open http://localhost:8000. Without a Groq key the app still works; text is just not translated.
+Open http://localhost:8000. Without an API key the app still works; text is just not translated.
 
 The demo has no login: use the **Logged in as** dropdown to switch between the manager and employees.
 Employees see only their own sheet and can only update status, progress, blocker and remarks.

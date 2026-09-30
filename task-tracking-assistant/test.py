@@ -1,4 +1,4 @@
-"""Check that the Groq API key works and translation is good.  Run:  python test.py"""
+"""Check that the LLM API key (Groq / OpenAI / Azure OpenAI) works and translation is good.  Run:  python test.py"""
 import os
 import sys
 
@@ -6,11 +6,9 @@ import httpx
 
 from backend import ai  # loads .env
 
-key = os.environ.get("GROQ_API_KEY")
-if not key:
-    sys.exit("FAIL: GROQ_API_KEY is not set. Put it in task-tracking-assistant/.env")
-print(f"Key found ({key[:6]}...{key[-4:]}), model: {os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile')}\n")
-
+if not ai.enabled():
+    sys.exit("FAIL: no API key set. Put GROQ_API_KEY, OPENAI_API_KEY or AZURE_OPENAI_API_KEY in task-tracking-assistant/.env")
+print("LLM provider:", ai.describe())
 print("Certificate trust:", ai.trust_mode(), "\n")
 
 samples = [
@@ -29,9 +27,9 @@ try:
         print(f"== English to {code} ==")
         print(f"  {ai._call([english], ai.LANGS[code])[0]}\n")
 except httpx.HTTPStatusError as e:
-    print(f"FAIL: Groq returned HTTP {e.response.status_code}")
+    print(f"FAIL: LLM API returned HTTP {e.response.status_code}")
     print(e.response.text[:500])
-    print("\nSSL certificate error = company network; run: pip install truststore | 401 = bad key | 429 = rate limit | 400/404 = wrong model name (check GROQ_MODEL)")
+    print("\nSSL certificate error = company network; run: pip install truststore | 401 = bad key | 403 = blocked by company firewall or no access | 429 = rate limit | 400/404 = wrong model name (check GROQ_MODEL)")
     sys.exit(1)
 except Exception as e:
     sys.exit(f"FAIL: {type(e).__name__}: {e}")

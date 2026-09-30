@@ -82,7 +82,7 @@ async function init() {
   me = cfg.users.find(u => u.id === saved) || cfg.users[0];
   $("#user").value = me.id;
   if (!cfg.ai_enabled) { const n = $("#notice"); n.style.display = "block";
-    n.textContent = "AI translation is OFF (no GROQ_API_KEY set). Text is saved and shown as typed. See README to enable it."; }
+    n.textContent = "AI translation is OFF (no LLM API key set in .env). Text is saved and shown as typed. See README to enable it."; }
   $("#user").onchange = e => { me = cfg.users.find(u => u.id == e.target.value); localStorage.setItem("uid", me.id); tab = me.role === "manager" ? "overview" : String(me.id); render(); };
   $("#lang").onchange = e => { lang = e.target.value; localStorage.setItem("lang", lang); render(); };
   $("#download").onclick = () => location.href = `/api/report?period=${$("#period").value}&user=${me.id}`;
