@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TaskFlow</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111'/%3E%3Cpath d='M9 17l5 5 9-11' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<title>Lakshya · AI Task Tracker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23111'/%3E%3Cg fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='16' cy='16' r='9'/%3E%3Ccircle cx='16' cy='16' r='4'/%3E%3Cpath d='M16 16L25 7M20.5 6.5H25.5V11.5'/%3E%3C/g%3E%3C/svg%3E">
 <script>
   // theme: saved choice, else system preference
   (function () { let t; try { t = localStorage.getItem("theme"); } catch (e) {}
@@ -26,7 +26,7 @@
   /* header */
   header { background:var(--card); border-bottom:1px solid var(--line); padding:10px 24px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .logo { font-weight:700; font-size:17px; letter-spacing:-.03em; display:flex; align-items:center; gap:9px; margin-right:auto; }
-  .logo i { font-style:normal; width:26px; height:26px; border-radius:8px; background:var(--ink); color:var(--on-ink); display:grid; place-items:center; font-size:14px; }
+  .logo .mk { color:var(--ink); display:grid; } .logo span:last-child { display:flex; flex-direction:column; line-height:1.1; } .logo small { font-size:10px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); margin-top:2px; }
   .pill { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mut); }
   .pill select, .btn { border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:7px 11px; }
   .pill select { color:var(--txt); font-weight:500; max-width:190px; }
@@ -63,12 +63,10 @@
   .ecard { background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:hidden; cursor:pointer; transition:transform .15s, box-shadow .15s, border-color .15s; display:flex; flex-direction:column; }
   .ecard:hover { transform:translateY(-3px); box-shadow:var(--shadow); border-color:var(--line2); }
   .ecard .top { padding:18px; display:flex; align-items:center; gap:14px; }
-  .ecard .top .avatar { background:color-mix(in srgb, var(--m-bg) 55%, #fff); }
-  :root[data-theme=dark] .ecard .top .avatar { background:var(--m-bg); }
   .ecard .top b { font-size:16px; letter-spacing:-.01em; display:block; } .ecard .top small { color:var(--mut); }
   .ecard .top .pct { margin-left:auto; font-size:22px; font-weight:700; letter-spacing:-.03em; }
   .ecard .body { padding:16px 18px 18px; display:flex; flex-direction:column; gap:12px; flex:1; }
-  .bar { height:7px; background:var(--fill); border-radius:8px; overflow:hidden; } .bar i { display:block; height:100%; background:var(--m-deep); border-radius:8px; transition:width .4s; }
+  .bar { height:7px; background:var(--fill); border-radius:8px; overflow:hidden; } .bar i { display:block; height:100%; border-radius:8px; transition:width .4s; }
   .chips { display:flex; gap:6px; flex-wrap:wrap; }
   .chip { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600; background:var(--fill); color:var(--mut); white-space:nowrap; border:1px solid transparent; }
   .chip.ink { background:var(--ink); color:var(--on-ink); } .chip.line { background:transparent; border-color:var(--ink); color:var(--txt); }
@@ -78,8 +76,7 @@
   .ecard .foot { margin-top:auto; padding-top:4px; display:flex; justify-content:space-between; align-items:center; }
 
   /* sheet */
-  .banner { border-radius:20px; padding:20px 22px; display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap; border:1px solid var(--line); }
-  .banner .avatar { background:color-mix(in srgb, var(--m-bg) 55%, #fff); } :root[data-theme=dark] .banner .avatar { background:var(--m-bg); }
+  .banner { background:var(--card); border-radius:20px; padding:20px 22px; display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap; border:1px solid var(--line); }
   .banner h2 { margin:0; font-size:24px; } .banner small { color:var(--mut); } .banner .grow { margin-right:auto; }
   .sheetwrap { background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:auto; }
   table { border-collapse:collapse; width:100%; min-width:1150px; }
@@ -99,7 +96,7 @@
   select[data-f=status] option { background:var(--card); color:var(--txt); }
   select[data-f=priority][data-v="Low"] { color:var(--mut); font-weight:500; } select[data-f=priority][data-v="High"] { font-weight:800; }
   tr.overdue input[type=date] { font-weight:800; text-decoration:underline; }
-  .prog { display:flex; align-items:center; gap:8px; padding:8px; } .prog input[type=range] { flex:1; min-width:70px; accent-color:var(--ink); padding:0; } .prog span { width:38px; text-align:right; font-weight:600; font-size:12px; color:var(--mut); }
+  .prog { display:flex; align-items:center; gap:8px; padding:8px; } .prog input[type=range] { flex:1; min-width:70px; padding:0; } .prog span { width:38px; text-align:right; font-weight:600; font-size:12px; color:var(--mut); }
   tr.add td { background:var(--raise); border-top:1px solid var(--line2); }
   tr.done td { opacity:.6; }
   .hint { color:var(--faint); font-size:12px; margin:12px 4px; }
@@ -129,7 +126,7 @@
   /* setup */
   .setup { position:fixed; inset:0; z-index:40; background:var(--bg); display:grid; place-items:center; padding:24px; overflow:auto; }
   .panel { background:var(--card); border:1px solid var(--line); border-radius:24px; padding:32px; width:100%; max-width:620px; box-shadow:var(--shadow); }
-  .panel .mark { width:38px; height:38px; border-radius:11px; background:var(--ink); color:var(--on-ink); display:grid; place-items:center; font-size:19px; margin-bottom:18px; }
+  .panel .mark { color:var(--ink); margin-bottom:18px; line-height:0; }
   .panel h1 { margin:0 0 6px; font-size:26px; } .panel p { margin:0 0 22px; color:var(--mut); }
   .field { display:flex; flex-direction:column; gap:5px; margin-bottom:12px; } .field label { font-size:12px; font-weight:600; color:var(--mut); }
   .field input, .row input { border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:10px 12px; width:100%; }
@@ -144,7 +141,7 @@
 </head>
 <body>
 <header id="hdr" style="display:none">
-  <div class="logo"><i>✓</i> TaskFlow</div>
+  <div class="logo"><span class="mk"><svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="9" fill="currentColor"/><g fill="none" stroke="var(--on-ink)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="9"/><circle cx="16" cy="16" r="4"/><path d="M16 16 L25 7"/><path d="M20.5 6.5 H25.5 V11.5"/></g></svg></span><span>Lakshya<small>AI Task Tracker</small></span></div>
   <label class="pill">Team <select id="team"></select></label>
   <label class="pill">Viewing as <select id="user"></select></label>
   <div class="menuwrap">
@@ -176,6 +173,8 @@ let lang = "en";   // English is always the default; the Translate button change
 /* Apple-15-style faint colours, one per member (never white / black / gray). [pastel, deeper accent] */
 const PALETTE = [["#f4cfd8","#c97a8e"],["#f3e7b1","#b89c2e"],["#d2e2cb","#6f9a63"],["#cbdeed","#5e8db7"],["#dcd4f0","#8a78c2"],
                  ["#f7d9c2","#cf9058"],["#c9ecdf","#5cae96"],["#ecd0ea","#b36fb0"],["#f6cdc5","#cc7566"],["#dfe6c2","#94a24f"]];
+/* progress grade: 0% red -> 50% amber -> 100% green */
+const grade = p => `hsl(${Math.round(Math.max(0, Math.min(100, p)) * 1.2)} 68% 44%)`;
 const mstyle = id => { const [bg, deep] = PALETTE[(id - 1) % PALETTE.length]; return `--m-bg:${bg};--m-deep:${deep}`; };
 
 async function api(path, opts = {}) {
@@ -230,7 +229,7 @@ function selectTeam(id, preferUser) {
 function showSetup(first) {
   const memberRow = () => `<div class="row"><input class="m-name" placeholder="Employee name"><input class="m-pos" placeholder="Position (e.g. Developer)"><button class="iconbtn" title="Remove" onclick="this.parentElement.remove()">✕</button></div>`;
   $("#setup").innerHTML = `<div class="setup"><div class="panel">
-    <div class="mark">✓</div>
+    <div class="mark"><svg viewBox="0 0 32 32" width="38" height="38" aria-hidden="true"><rect width="32" height="32" rx="9" fill="currentColor"/><g fill="none" stroke="var(--on-ink)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="9"/><circle cx="16" cy="16" r="4"/><path d="M16 16 L25 7"/><path d="M20.5 6.5 H25.5 V11.5"/></g></svg></div>
     <h1>${first ? "Create your team" : "Create a new team"}</h1>
     <p>Add the team, its leader and the people who report to them. You can change members later.</p>
     <div class="field"><label>Team name</label><input id="s-team" placeholder="e.g. Traceability Team" autofocus></div>
@@ -308,9 +307,9 @@ async function renderOverview() {
     <div class="kpis">${kpi(sum("total"), "Total tasks")}${kpi(sum("done"), "Done")}${kpi(sum("in_progress"), "In progress")}${kpi(sum("blocked"), "Blocked")}${kpi(sum("overdue"), "Overdue")}${kpi(avg + "%", "Average progress")}</div>
     ${data.length ? `<div class="cards">${data.map(e => `
       <div class="ecard" data-id="${e.id}" style="${mstyle(e.id)}">
-        <div class="top mtint">${avatar(e, "lg")}<div><b>${esc(e.name)}</b><small>${esc(e.position || "Team member")}</small></div><span class="pct">${e.avg_progress}%</span></div>
+        <div class="top">${avatar(e, "lg")}<div><b>${esc(e.name)}</b><small>${esc(e.position || "Team member")}</small></div><span class="pct">${e.avg_progress}%</span></div>
         <div class="body">
-          <div class="bar"><i style="width:${e.avg_progress}%"></i></div>
+          <div class="bar"><i style="width:${e.avg_progress}%;background:${grade(e.avg_progress)}"></i></div>
           <div class="chips"><span class="chip">${e.total} ${e.total === 1 ? "task" : "tasks"}</span><span class="chip">${e.done} done</span><span class="chip">${e.in_progress} in progress</span>
             ${e.blocked ? `<span class="chip line">${e.blocked} blocked</span>` : ""}${e.overdue ? `<span class="chip ink">${e.overdue} overdue</span>` : ""}</div>
           <div><div class="sect">Current work</div>${e.current_work.length ? `<ul class="plain">${e.current_work.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : `<span class="muted">Nothing in progress</span>`}</div>
@@ -353,7 +352,7 @@ async function renderSheet(empId) {
   const sel = (arr, v) => arr.map(o => `<option ${o === v ? "selected" : ""}>${o}</option>`).join("");
   const open = tasks.filter(t => t.status !== "Done").length;
   $("#view").innerHTML = `
-    <div class="banner mtint" style="${mstyle(person.id)}">${avatar(person, "lg")}
+    <div class="banner" style="${mstyle(person.id)}">${avatar(person, "lg")}
       <div class="grow"><h2>${esc(person.name)}</h2><small>${esc(person.position || "Team member")} · ${open} open · ${tasks.length - open} done</small></div>
       <button class="btn solid" id="sumOne">✦ Summarize</button></div>
     <div class="sheetwrap"><table><thead><tr><th style="width:24%">Task</th><th>Priority</th><th>Deadline</th><th>Status</th><th>Progress</th><th style="width:20%">Blocker</th><th style="width:20%">Remarks</th>${isM ? "<th></th>" : ""}</tr></thead>
@@ -363,7 +362,7 @@ async function renderSheet(empId) {
         <td>${isM ? `<select data-f="priority" data-v="${t.priority}">${sel(cfg.priorities, t.priority)}</select>` : `<div class="ro">${t.priority}</div>`}</td>
         <td>${isM ? `<input type="date" data-f="deadline" value="${t.deadline || ""}">` : `<div class="ro">${t.deadline || ""}</div>`}</td>
         <td><select data-f="status" data-v="${t.status}">${sel(cfg.statuses, t.status)}</select></td>
-        <td><div class="prog"><input type="range" min="0" max="100" step="5" data-f="progress" value="${t.progress}"><span>${t.progress}%</span></div></td>
+        <td><div class="prog"><input type="range" min="0" max="100" step="5" data-f="progress" value="${t.progress}" style="accent-color:${grade(t.progress)}"><span>${t.progress}%</span></div></td>
         <td><input data-f="blocker" value="${esc(t.blocker)}" placeholder="Any language…"></td>
         <td><input data-f="remarks" value="${esc(t.remarks)}" placeholder="Any language…"></td>
         ${isM ? `<td class="ro"><button class="iconbtn" data-del title="Delete task">✕</button></td>` : ""}
@@ -382,7 +381,7 @@ async function renderSheet(empId) {
     const id = row.dataset.id;
     row.querySelectorAll("[data-f]").forEach(el => {
       const f = el.dataset.f;
-      if (f === "progress") el.oninput = () => el.nextElementSibling.textContent = el.value + "%";
+      if (f === "progress") el.oninput = () => { el.nextElementSibling.textContent = el.value + "%"; el.style.accentColor = grade(+el.value); };
       el.onchange = async () => {
         let v = el.value; if (f === "progress") v = +v;
         toast("Saving…");

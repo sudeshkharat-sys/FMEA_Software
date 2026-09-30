@@ -1,4 +1,4 @@
-# Task Tracking Assistant (demo)
+# Lakshya — AI Task Tracker (demo)
 
 Excel-sheet-style task tracker. Manager gets an **Overview** tab plus one **sheet tab per employee**.
 People type tasks / blockers / remarks in **English, Hindi, Marathi or Hinglish** — stored in English
