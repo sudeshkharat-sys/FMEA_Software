@@ -1,37 +1,36 @@
-"""Check that the LLM API key (Groq / OpenAI / Azure OpenAI) works and translation is good.  Run:  python test.py"""
+"""Check the AI connection AND the exact translation path the app uses.  Run:  python test.py"""
 import os
 import sys
 
-import httpx
+from backend import ai, db  # ai loads .env
 
-from backend import ai  # loads .env
+db.init_db()  # translation cache lives in the app database
 
 if not ai.enabled():
-    sys.exit("FAIL: no API key set. Put GROQ_API_KEY, OPENAI_API_KEY or AZURE_OPENAI_API_KEY in task-tracking-assistant/.env")
+    sys.exit("FAIL: no API key set. Put your Azure/OpenAI/Groq settings in task-tracking-assistant/.env")
 print("LLM provider:", ai.describe())
 print("Certificate trust:", ai.trust_mode(), "\n")
 
 samples = [
-    "शुक्रवार तक रिपोर्ट तयार करा",                 # Marathi
-    "UI ho gaya, backend mein ek Excel format fail ho raha hai",  # Hinglish
-    "सर्वर एक्सेस मिळाला नाही, डिप्लॉयमेंट रुकी हुई है",   # Marathi + Hindi mix
+    "\u0936\u0941\u0915\u094d\u0930\u0935\u093e\u0930 \u0924\u0915 \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0924\u092f\u093e\u0930 \u0915\u0930\u093e",       # Marathi (Devanagari)
+    "UI ho gaya, backend mein ek Excel format fail ho raha hai",                            # Hinglish
+    "\u0938\u0930\u094d\u0935\u0930 \u090f\u0915\u094d\u0938\u0947\u0938 \u0928\u0939\u0940\u0902 \u092e\u093f\u0932\u093e, \u0921\u093f\u092a\u094d\u0932\u0949\u092f\u092e\u0947\u0902\u091f \u0930\u0941\u0915\u093e \u0939\u0948",  # Hindi
+    "waiting for acess from IT dept",                                                        # English with a typo
 ]
+failed = False
+print("== Typed text -> English (this is what happens when someone saves a task/blocker/remark) ==")
+for src in samples:
+    out, ok = ai.to_english(src)
+    bad = ai._problem(out, "en")
+    status = "OK" if ok and not bad and out != src else "PROBLEM"
+    failed |= status != "OK" and not src.startswith("waiting")
+    print(f"  [{status}] {src}\n        -> {out}" + ("" if ok else "   (AI CALL FAILED - see error above)") + (f"   ({bad})" if bad else "") + "\n")
 
-try:
-    print("== To English ==")
-    for src, out in zip(samples, ai._call(samples, ai.LANGS["en"])):
-        print(f"  {src}\n  -> {out}\n")
+english = "Chakan Excel format is failing, waiting for deployment access"
+for code in ("mr", "hi", "hinglish"):
+    out = ai.translate_many([english], code)[0]
+    bad = ai._problem(out, code)
+    print(f"== English to {code} ==\n  {out}" + (f"\n  (still needs fixing: {bad})" if bad else "") + "\n")
 
-    english = "Chakan Excel format is failing, waiting for deployment access"
-    for code in ("mr", "hi", "hinglish"):
-        print(f"== English to {code} ==")
-        print(f"  {ai._call([english], ai.LANGS[code])[0]}\n")
-except httpx.HTTPStatusError as e:
-    print(f"FAIL: LLM API returned HTTP {e.response.status_code}")
-    print(e.response.text[:500])
-    print("\nSSL certificate error = company network; run: pip install truststore | 401 = bad key | 403 = blocked by company firewall or no access | 429 = rate limit | 400/404 = wrong model name (check GROQ_MODEL)")
-    sys.exit(1)
-except Exception as e:
-    sys.exit(f"FAIL: {type(e).__name__}: {e}")
-
-print("PASS: the LLM connection works and translation is working.")
+print("FAIL: translation to English is not working, see above." if failed else "PASS: the AI connection and translation are working.")
+sys.exit(1 if failed else 0)

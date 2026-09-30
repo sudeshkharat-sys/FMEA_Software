@@ -1,3 +1,5 @@
+import re
+import threading
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
@@ -20,9 +22,34 @@ TEXT_FIELDS = ["title", "blocker", "remarks"]
 EMPLOYEE_EDITABLE = {"status", "progress", "blocker", "remarks"}
 
 
+_DEVANAGARI = re.compile(r"[\u0900-\u097F]")
+
+
+def repair_existing():
+    """Rows saved while AI was off/failing may hold Hindi/Marathi in the English columns; convert them now."""
+    if not ai.enabled():
+        return
+    with conn() as c:
+        rows = c.execute("SELECT id,title,blocker,remarks FROM tasks").fetchall()
+    fixed = 0
+    for r in rows:
+        for f in TEXT_FIELDS:
+            cur = (r[f] or "").strip()
+            if cur and _DEVANAGARI.search(cur):
+                en, ok = ai.to_english(cur)
+                if ok and en and en != cur:
+                    with conn() as c:
+                        c.execute(f"UPDATE tasks SET {f}=? WHERE id=?", (en, r["id"]))
+                    fixed += 1
+    if fixed:
+        print(f"[ai] converted {fixed} old text field(s) to English")
+
+
 @app.on_event("startup")
 def _startup():
     init_db()
+    print("[ai] provider:", ai.describe(), "| enabled" if ai.enabled() else "| DISABLED (no key found in .env)")
+    threading.Thread(target=repair_existing, daemon=True).start()
 
 
 def current_user(uid: Optional[int]):

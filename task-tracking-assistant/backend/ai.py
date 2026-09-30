@@ -138,12 +138,18 @@ SCRIPT_RULES = {
 
 _DEVANAGARI = re.compile(r"[\u0900-\u097F]")
 _LATIN_WORD = re.compile(r"\b[A-Za-z]{2,}\b")
+# distinctive Hindi/Marathi words in Roman letters that should never survive into English output
+_ROMAN_INDIC = re.compile(r"\b(hai|hain|nahi|nahin|raha|rahi|rahe|karna|karne|karo|kiya|kiye|mein|gaya|gayi|gaye|mila|mili|hua|hui|abhi|baaki|baki|liye|aur|kal|aaj|aahe|ahe|zala|zali|kela|keli|karayche|nahiye|chalu|pahije|bhetla|milala)\b", re.I)
 
 
 def _problem(out: str, lang: str) -> str | None:
     """Return a description of what is wrong with `out` for this language, or None if it is fine."""
     if lang in ("en", "hinglish") and _DEVANAGARI.search(out):
         return "it contains Devanagari letters but must use only Latin letters"
+    if lang == "en":
+        w = sorted({m.group(0).lower() for m in _ROMAN_INDIC.finditer(out)})
+        if w:
+            return "it still contains Hindi/Marathi words written in Roman letters, translate them to English: " + ", ".join(w)
     if lang in ("mr", "hi"):
         bad = [w for w in _LATIN_WORD.findall(out) if not w.isupper()]
         if bad:
@@ -216,7 +222,11 @@ def _translate(texts: list[str], lang: str) -> tuple[list[str], bool]:
                             except Exception as e:
                                 print("repair failed:", e)
                         result[src] = out
-                        c.execute("INSERT OR REPLACE INTO translations VALUES(?,?,?)", (src, key, out))
+                        if _problem(out, lang):  # still breaks the rules: do not cache it, and tell the caller
+                            ok = False
+                            print(f"[ai] translation to {lang} still invalid ({_problem(out, lang)}): {out!r}")
+                        else:
+                            c.execute("INSERT OR REPLACE INTO translations VALUES(?,?,?)", (src, key, out))
             except Exception as e:  # network/quota/format
                 ok = False
                 print("translation failed:", e)
