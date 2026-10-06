@@ -89,6 +89,10 @@
   .nodl { color:var(--faint); font-style:italic; }
   .dtask { padding:10px 0; border-bottom:1px solid var(--line); } .dtask:last-child { border-bottom:0; }
   .dtask .meta { color:var(--mut); font-size:12px; margin-top:2px; }
+  .modal.big { max-width:760px; } .modal.big .mb { max-height:52vh; }
+  .qbox { padding:14px 22px; border-top:1px solid var(--line); background:var(--raise); }
+  .qbox textarea { width:100%; box-sizing:border-box; border:1px solid var(--line2); background:var(--card); color:var(--txt); border-radius:12px; padding:12px 14px; font:inherit; resize:vertical; }
+  .qbox .qrow { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
   .qadd { display:flex; gap:8px; padding:14px 22px; border-top:1px solid var(--line); background:var(--raise); }
   .qadd input { flex:1; border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:9px 12px; }
   .modal .mb.rich { white-space:normal; }
@@ -324,37 +328,39 @@ function attentionStrip(data) {
     ${rows.length > 8 ? `<div class="more">+${rows.length - 8} more</div>` : ""}</div>`;
 }
 
-/* compact card: ongoing work first; blockers only while there is room */
+/* compact card: every not-done task, then blockers while there is room */
 function cardWork(e) {
-  const MAX = 3, w = e.current_work, b = e.blockers;
+  const MAX = 4, w = e.open_tasks, b = e.blockers;
   const shownW = w.slice(0, MAX), room = MAX - shownW.length;
-  const shownB = room > 0 ? b.slice(0, Math.min(room, 1)) : [];
+  const shownB = room > 0 ? b.slice(0, Math.min(room, 2)) : [];
   const hidden = (w.length - shownW.length) + (b.length - shownB.length);
-  return `<div><div class="sect">Ongoing</div>${shownW.length ? `<ul class="plain tight">${shownW.map(t => `<li>${esc(t.title)}</li>`).join("")}</ul>` : `<span class="muted">Nothing in progress</span>`}</div>
-    ${shownB.length ? `<div><div class="sect">Blocker</div><ul class="plain bl tight">${shownB.map(t => `<li>${esc(t.title)}${t.blocker ? ": " + esc(t.blocker) : ""}</li>`).join("")}</ul></div>` : ""}
-    ${hidden > 0 ? `<div class="more">+${hidden} more</div>` : ""}`;
+  return `<div><div class="sect">Tasks (${w.length})</div>${shownW.length ? `<ul class="plain tight">${shownW.map(t => `<li>${esc(t.title)} <span class="muted">· ${esc(t.status)}</span></li>`).join("")}</ul>` : `<span class="muted">Nothing pending</span>`}</div>
+    ${shownB.length ? `<div><div class="sect">Blockers (${b.length})</div><ul class="plain bl tight">${shownB.map(t => `<li>${esc(t.title)}${t.blocker ? ": " + esc(t.blocker) : ""}</li>`).join("")}</ul></div>` : ""}
+    ${hidden > 0 ? `<div class="more">+${hidden} more — click to see all</div>` : ""}`;
 }
 
-/* full ongoing tasks + blockers for one person */
+/* big scrollable popup: all not-done tasks and blockers, plus the natural-language add-task box */
 function personDetail(e) {
   const close = () => $("#modal").innerHTML = "";
-  const meta = t => [t.progress + "%", t.deadline ? "due " + t.deadline : null, t.overdue ? "overdue" : null].filter(Boolean).join(" · ");
-  $("#modal").innerHTML = `<div class="overlay"><div class="modal">
-    <div class="mh">${avatar(e)}<div><h3>${esc(e.name)}</h3><small>${esc(e.position || "Team member")} · ${e.avg_progress}% average</small></div></div>
+  const meta = t => [t.status, t.progress + "%", t.deadline ? "due " + t.deadline : "no deadline", t.overdue ? "overdue" : null].filter(Boolean).join(" · ");
+  $("#modal").innerHTML = `<div class="overlay"><div class="modal big">
+    <div class="mh">${avatar(e)}<div><h3>${esc(e.name)}</h3><small>${esc(e.position || "Team member")} · ${e.done} done · ${e.avg_progress}% average</small></div></div>
     <div class="mb rich">
-      <div class="sect">Ongoing tasks (${e.current_work.length})</div>
-      ${e.current_work.map(t => `<div class="dtask"><b>${esc(t.title)}</b><div class="meta">${meta(t)}</div></div>`).join("") || `<div class="muted">Nothing in progress</div>`}
-      ${e.upcoming && e.upcoming.length ? `<div class="sect" style="margin-top:16px">To do next (${e.upcoming.length})</div>${e.upcoming.map(t => `<div class="dtask"><b>${esc(t.title)}</b><div class="meta">${t.deadline ? "due " + t.deadline : "No deadline"}${t.overdue ? " · overdue" : ""}</div></div>`).join("")}` : ""}
-      <div class="sect" style="margin-top:16px">Blockers (${e.blockers.length})</div>
+      <div class="sect">Tasks (${e.open_tasks.length})</div>
+      ${e.open_tasks.map(t => `<div class="dtask"><b>${esc(t.title)}</b><div class="meta">${esc(meta(t))}</div></div>`).join("") || `<div class="muted">Nothing pending</div>`}
+      <div class="sect" style="margin-top:18px">Blockers (${e.blockers.length})</div>
       ${e.blockers.map(t => `<div class="dtask"><b>${esc(t.title)}</b>${t.blocker ? `<div class="meta">${esc(t.blocker)}</div>` : ""}</div>`).join("") || `<div class="muted">No blockers</div>`}
     </div>
-    <div class="qadd"><input id="q-text" placeholder="＋ Type a task in plain words, e.g. “Fix barcode bug by Friday” — AI names it and finds the deadline"><button class="btn solid" id="q-add">Add task</button></div>
-    <div class="mf"><button class="btn" id="m-sum">✦ Summarize</button><button class="btn" id="m-close">Close</button><button class="btn solid" id="m-open">Open sheet →</button></div></div></div>`;
+    <div class="qbox" id="qbox" style="display:none"><textarea id="q-text" rows="4" placeholder="Write the task in your own words — English, हिंदी, मराठी or Hinglish. e.g. “Fix the barcode scan bug by Friday”. AI will give it a name and pick up the deadline."></textarea>
+      <div class="qrow"><button class="btn" id="q-cancel">Cancel</button><button class="btn solid" id="q-add">Add to ${esc(e.name)}'s tasks</button></div></div>
+    <div class="mf"><button class="btn solid" id="m-new">＋ Add task</button><button class="btn" id="m-sum">✦ Summarize</button><span class="note"></span><button class="btn" id="m-open">Open sheet →</button><button class="btn" id="m-close">Close</button></div></div></div>`;
   $("#m-close").onclick = close; $(".overlay").onclick = ev => { if (ev.target.classList.contains("overlay")) close(); };
   $("#m-open").onclick = () => { close(); tab = String(e.id); render(); };
   $("#m-sum").onclick = () => { close(); summarize(e.id); };
+  $("#m-new").onclick = () => { $("#qbox").style.display = ""; $("#m-new").style.display = "none"; $("#q-text").focus(); };
+  $("#q-cancel").onclick = () => { $("#qbox").style.display = "none"; $("#m-new").style.display = ""; };
   const add = async () => {
-    const text = $("#q-text").value.trim(); if (!text) return toast("Type a task");
+    const text = $("#q-text").value.trim(); if (!text) return toast("Write the task first");
     $("#q-add").disabled = true; toast("Adding…");
     try {
       const r = await api("/tasks/quick", { method: "POST", body: JSON.stringify({ employee_id: e.id, text }) });
@@ -363,7 +369,8 @@ function personDetail(e) {
       const fresh = ovData.find(x => x.id === e.id); if (fresh) personDetail(fresh); else close();
     } catch { $("#q-add").disabled = false; }
   };
-  $("#q-add").onclick = add; $("#q-text").onkeydown = ev => { if (ev.key === "Enter") add(); };
+  $("#q-add").onclick = add;
+  $("#q-text").onkeydown = ev => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) add(); };
 }
 
 let ovData = [];

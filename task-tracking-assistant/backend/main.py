@@ -186,7 +186,8 @@ def overview(lang: str = "en", x_user_id: Optional[int] = Header(None)):
                 "current_work": [{"title": t["title"], "progress": t["progress"], "deadline": t["deadline"], "overdue": t["overdue"]}
                                  for t in open_t if t["status"] == "In Progress"],
                 "blockers": [{"title": t["title"], "blocker": t["blocker"]} for t in blocked],
-                "upcoming": [{"title": t["title"], "deadline": t["deadline"], "overdue": t["overdue"]} for t in open_t if t["status"] == "To Do"],
+                "open_tasks": [{"title": t["title"], "status": t["status"], "progress": t["progress"], "deadline": t["deadline"],
+                                "overdue": t["overdue"], "blocker": t["blocker"]} for t in open_t],
             })
     out.sort(key=lambda e: (-e["risk"], e["id"]))  # most at-risk people first
     return out
