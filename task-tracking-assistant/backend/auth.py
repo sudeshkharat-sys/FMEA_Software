@@ -48,17 +48,9 @@ def set_password(pw: str):
     _save(cfg)
 
 
-def ensure_password() -> str | None:
-    """First run: make a random password, write FIRST_RUN_PASSWORD.txt, return it. Otherwise None."""
+def has_password() -> bool:
     cfg = _load()
-    if cfg.get("hash") and cfg.get("secret"):
-        return None
-    pw = os.environ.get("TASKFLOW_PASSWORD") or secrets.token_urlsafe(9)
-    set_password(pw)
-    (DATA_DIR / "FIRST_RUN_PASSWORD.txt").write_text(
-        f"TaskFlow login password:\n{pw}\n\nShare it with your team, then delete this file.\n"
-        "Change it any time:  TaskFlow.exe --set-password\n")
-    return pw
+    return bool(cfg.get("hash") and cfg.get("secret"))
 
 
 def _sign(exp: str) -> str:

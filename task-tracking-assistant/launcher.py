@@ -1,7 +1,8 @@
 """TaskFlow exe entry point. Starts the server for the whole Wi-Fi/LAN, behind a shared password.
   TaskFlow.exe                  start (opens the browser on this PC)
   TaskFlow.exe --port 8000      choose the port
-  TaskFlow.exe --set-password   change the login password and exit
+  TaskFlow.exe --set-password   change the web login password and exit
+Always asks the start password first (START_PASSWORD in backend/startgate.py).
 Data (tracker.db, .env, taskflow_config.json) lives NEXT TO the exe, so updating = replace the exe."""
 import argparse
 import os
@@ -12,7 +13,7 @@ import webbrowser
 
 os.environ["TASKFLOW_AUTH"] = "1"
 
-from backend import auth  # noqa: E402
+from backend import auth, startgate  # noqa: E402
 from backend.paths import DATA_DIR  # noqa: E402
 
 
@@ -33,15 +34,26 @@ def main():
     ap.add_argument("--no-browser", action="store_true")
     a = ap.parse_args()
 
-    if a.set_password:
-        import getpass
-        pw = getpass.getpass("New password: ")
-        if len(pw) < 6 or pw != getpass.getpass("Repeat: "):
-            sys.exit("Passwords differ or are shorter than 6 characters. Nothing changed.")
-        auth.set_password(pw)
-        sys.exit("Password changed. Restart TaskFlow.exe.")
+    startgate.ask()  # 1) password to start the exe (set in backend/startgate.py)
 
-    first = auth.ensure_password()
+    def choose_web_password():
+        import getpass
+        while True:
+            pw = getpass.getpass("New web login password for TaskFlow users (min 6 characters): ")
+            if len(pw) >= 6 and pw == getpass.getpass("Repeat it: "):
+                return pw
+            print("Too short or not matching, try again.")
+
+    if a.set_password:  # change the web login password later
+        auth.set_password(choose_web_password())
+        input("Web password changed. Press Enter to close, then start TaskFlow.exe again.")
+        sys.exit(0)
+
+    first = False
+    if not auth.has_password():  # 2) first run on this server: you choose the web password
+        pw = os.environ.get("TASKFLOW_PASSWORD") or choose_web_password()
+        auth.set_password(pw)
+        first = True
     import uvicorn
     from backend.main import app
     print("=" * 56)
@@ -49,8 +61,10 @@ def main():
     for ip in lan_ips():
         print(f"  Team link:  http://{ip}:{a.port}")
     print("  This PC:    http://localhost:%d" % a.port)
+    from backend import ai
+    print("  AI: " + (ai.describe() if ai.enabled() else "OFF (no .env next to the exe) - TaskFlow still works without AI"))
     if first:
-        print(f"\n  FIRST RUN password: {first}\n  (also saved in FIRST_RUN_PASSWORD.txt - share it, then delete the file)")
+        print("  Web login password saved. Share it with your team.")
     print(" If others cannot connect, allow the port in Windows Firewall.")
     print("=" * 56)
     if not a.no_browser:
