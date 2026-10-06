@@ -248,6 +248,31 @@ def to_english(text: str) -> tuple[str, bool]:
     return out[0], ok
 
 
+def parse_task(text: str, today: str, names: list[str]) -> tuple[dict, bool]:
+    """Pull task name / deadline / priority / assignee out of one free-text sentence. Never raises.
+    Returns (fields, ai_ok); without AI the whole text becomes the title and no deadline is set."""
+    text = (text or "").strip()
+    plain = {"title": text, "deadline": None, "priority": None, "assignee": None}
+    if not enabled():
+        return plain, False
+    system = (
+        f"You turn one short task sentence (English, Hindi, Marathi or Hinglish) into fields. Today is {today}. "
+        f"Team members: {', '.join(names) or 'none'}. Reply ONLY with JSON: "
+        '{"title": str, "deadline": "YYYY-MM-DD" or null, "priority": "Low"|"Medium"|"High" or null, "assignee": one of the team member names or null}. '
+        "title = a short task name WITHOUT the person's name and WITHOUT the deadline words. "
+        "deadline = only if the sentence states or implies a date (tomorrow, Friday, 15th, next week = following Monday); otherwise null, never guess. "
+        "priority = only if stated (urgent/asap -> High); otherwise null. assignee = only if a team member is named; otherwise null."
+    )
+    try:
+        d = _chat_json(system, {"text": text})
+        title = d.get("title") if isinstance(d.get("title"), str) and d["title"].strip() else text
+        return {"title": title.strip(), "deadline": d.get("deadline") or None,
+                "priority": d.get("priority"), "assignee": d.get("assignee")}, True
+    except Exception as e:
+        print("parse_task failed:", e)
+        return plain, False
+
+
 def summarize(facts: str, lang: str, scope: str) -> str:
     """AI summary of task facts in the chosen language. Raises on failure (caller falls back)."""
     lang = lang if lang in LANGS else "en"

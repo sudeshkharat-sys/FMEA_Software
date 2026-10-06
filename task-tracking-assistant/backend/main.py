@@ -179,8 +179,9 @@ def overview(lang: str = "en", x_user_id: Optional[int] = Header(None)):
                 "blocked": sum(t["status"] == "Blocked" for t in tasks),
                 "overdue": sum(t["overdue"] for t in tasks),
                 "avg_progress": round(sum(t["progress"] for t in tasks) / len(tasks)) if tasks else 0,
-                "current_work": [t["title"] for t in open_t if t["status"] == "In Progress"][:3],
-                "blockers": [f'{t["title"]}: {t["blocker"]}' if t["blocker"] else t["title"] for t in blocked],
+                "current_work": [{"title": t["title"], "progress": t["progress"], "deadline": t["deadline"], "overdue": t["overdue"]}
+                                 for t in open_t if t["status"] == "In Progress"],
+                "blockers": [{"title": t["title"], "blocker": t["blocker"]} for t in blocked],
             })
     return out
 
@@ -221,6 +222,43 @@ def add_task(t: NewTask, x_user_id: Optional[int] = Header(None)):
                VALUES(?,?,?,?,?,?,?,?,?)""",
             (t.employee_id, title_en, t.title, t.priority, t.deadline or None, remarks_en, t.remarks, ts, ts))
     return {"id": cur.lastrowid, "translated": ok1 and ok2}
+
+
+class QuickTask(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    employee_id: int
+
+
+@app.post("/api/tasks/quick")
+def quick_task(q: QuickTask, x_user_id: Optional[int] = Header(None)):
+    """One plain sentence in; AI pulls out the task name, deadline (if said), priority and assignee (if a member is named)."""
+    u = current_user(x_user_id)
+    require_manager(u)
+    with conn() as c:
+        employee_in_team(c, q.employee_id, u["team_id"])
+        members = [dict(m) for m in c.execute(
+            "SELECT id,name FROM users WHERE team_id=? AND role='employee'", (u["team_id"],))]
+    p, parsed = ai.parse_task(q.text, date.today().isoformat(), [m["name"] for m in members])
+    emp_id = q.employee_id
+    who = (p.get("assignee") or "").strip().lower()
+    if who:
+        hit = [m for m in members if m["name"].lower() == who or m["name"].lower().split()[0] == who.split()[0]]
+        if len(hit) == 1:
+            emp_id = hit[0]["id"]
+    title_en, ok = ai.to_english(p["title"])
+    deadline = p.get("deadline")
+    try:
+        deadline = date.fromisoformat(deadline).isoformat() if deadline else None
+    except ValueError:
+        deadline = None
+    pri = p.get("priority") if p.get("priority") in PRIORITIES else "Medium"
+    ts = now()
+    with conn() as c:
+        cur = c.execute(
+            """INSERT INTO tasks(employee_id,title,title_orig,priority,deadline,remarks,remarks_orig,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?)""", (emp_id, title_en, q.text, pri, deadline, "", "", ts, ts))
+    return {"id": cur.lastrowid, "employee_id": emp_id, "title": title_en, "deadline": deadline,
+            "priority": pri, "ai": parsed, "translated": ok}
 
 
 class TaskPatch(BaseModel):

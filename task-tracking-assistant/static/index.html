@@ -76,6 +76,16 @@
   .muted { color:var(--mut); }
   .ecard .foot { margin-top:auto; padding-top:4px; display:flex; justify-content:space-between; align-items:center; }
 
+  ul.plain.tight li { margin:3px 0; } .more { color:var(--faint); font-size:12px; margin-top:2px; }
+  .cardhint { color:var(--faint); font-size:12px; }
+  .dl { position:relative; } .dl.empty input { color:transparent; } .dl.empty:focus-within input { color:inherit; }
+  .dl.empty::after { content:"Add deadline"; position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--faint); font-style:italic; pointer-events:none; }
+  .dl.empty:focus-within::after { display:none; }
+  .nodl { color:var(--faint); font-style:italic; }
+  .dtask { padding:10px 0; border-bottom:1px solid var(--line); } .dtask:last-child { border-bottom:0; }
+  .dtask .meta { color:var(--mut); font-size:12px; margin-top:2px; }
+  .modal .mb.rich { white-space:normal; }
+
   /* sheet */
   .banner { background:var(--card); border-radius:20px; padding:20px 22px; display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap; border:1px solid var(--line); }
   .banner h2 { margin:0; font-size:24px; } .banner small { color:var(--mut); } .banner .grow { margin-right:auto; }
@@ -298,6 +308,35 @@ async function render() {
   renderSheet(+tab);
 }
 
+/* compact card: ongoing work first; blockers only while there is room */
+function cardWork(e) {
+  const MAX = 3, w = e.current_work, b = e.blockers;
+  const shownW = w.slice(0, MAX), room = MAX - shownW.length;
+  const shownB = room > 0 ? b.slice(0, Math.min(room, 1)) : [];
+  const hidden = (w.length - shownW.length) + (b.length - shownB.length);
+  return `<div><div class="sect">Ongoing</div>${shownW.length ? `<ul class="plain tight">${shownW.map(t => `<li>${esc(t.title)}</li>`).join("")}</ul>` : `<span class="muted">Nothing in progress</span>`}</div>
+    ${shownB.length ? `<div><div class="sect">Blocker</div><ul class="plain bl tight">${shownB.map(t => `<li>${esc(t.title)}${t.blocker ? ": " + esc(t.blocker) : ""}</li>`).join("")}</ul></div>` : ""}
+    ${hidden > 0 ? `<div class="more">+${hidden} more</div>` : ""}`;
+}
+
+/* full ongoing tasks + blockers for one person */
+function personDetail(e) {
+  const close = () => $("#modal").innerHTML = "";
+  const meta = t => [t.progress + "%", t.deadline ? "due " + t.deadline : null, t.overdue ? "overdue" : null].filter(Boolean).join(" · ");
+  $("#modal").innerHTML = `<div class="overlay"><div class="modal">
+    <div class="mh">${avatar(e)}<div><h3>${esc(e.name)}</h3><small>${esc(e.position || "Team member")} · ${e.avg_progress}% average</small></div></div>
+    <div class="mb rich">
+      <div class="sect">Ongoing tasks (${e.current_work.length})</div>
+      ${e.current_work.map(t => `<div class="dtask"><b>${esc(t.title)}</b><div class="meta">${meta(t)}</div></div>`).join("") || `<div class="muted">Nothing in progress</div>`}
+      <div class="sect" style="margin-top:16px">Blockers (${e.blockers.length})</div>
+      ${e.blockers.map(t => `<div class="dtask"><b>${esc(t.title)}</b>${t.blocker ? `<div class="meta">${esc(t.blocker)}</div>` : ""}</div>`).join("") || `<div class="muted">No blockers</div>`}
+    </div>
+    <div class="mf"><button class="btn" id="m-sum">✦ Summarize</button><button class="btn" id="m-close">Close</button><button class="btn solid" id="m-open">Open sheet →</button></div></div></div>`;
+  $("#m-close").onclick = close; $(".overlay").onclick = ev => { if (ev.target.classList.contains("overlay")) close(); };
+  $("#m-open").onclick = () => { close(); tab = String(e.id); render(); };
+  $("#m-sum").onclick = () => { close(); summarize(e.id); };
+}
+
 async function renderOverview() {
   const data = await api(`/overview?lang=${lang}`);
   const sum = k => data.reduce((a, e) => a + e[k], 0);
@@ -314,14 +353,13 @@ async function renderOverview() {
           <div class="bar"><i style="width:${e.avg_progress}%;background:${grade(e.avg_progress)}"></i></div>
           <div class="chips"><span class="chip">${e.total} ${e.total === 1 ? "task" : "tasks"}</span><span class="chip">${e.done} done</span><span class="chip">${e.in_progress} in progress</span>
             ${e.blocked ? `<span class="chip line">${e.blocked} blocked</span>` : ""}${e.overdue ? `<span class="chip ink">${e.overdue} overdue</span>` : ""}</div>
-          <div><div class="sect">Current work</div>${e.current_work.length ? `<ul class="plain">${e.current_work.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : `<span class="muted">Nothing in progress</span>`}</div>
-          ${e.blockers.length ? `<div><div class="sect">Blockers</div><ul class="plain bl">${e.blockers.map(w => `<li>${esc(w)}</li>`).join("")}</ul></div>` : ""}
-          <div class="foot"><button class="btn small" data-sum="${e.id}">✦ Summarize</button><span class="muted">Open sheet →</span></div>
+          ${cardWork(e)}
+          <div class="foot"><button class="btn small" data-sum="${e.id}">✦ Summarize</button><span class="cardhint">Click for details</span></div>
         </div>
       </div>`).join("")}</div>`
     : `<div class="sheetwrap"><div class="empty">No team members yet. Open the Team tab to add people.</div></div>`}`;
   $("#sumTeam").onclick = () => summarize(null);
-  document.querySelectorAll(".ecard").forEach(r => r.onclick = () => { tab = r.dataset.id; render(); });
+  document.querySelectorAll(".ecard").forEach(r => r.onclick = () => personDetail(data.find(e => e.id === +r.dataset.id)));
   document.querySelectorAll("[data-sum]").forEach(b => b.onclick = e => { e.stopPropagation(); summarize(+b.dataset.sum); });
 }
 
@@ -363,7 +401,7 @@ async function renderSheet(empId) {
       <tr data-id="${t.id}" class="${t.overdue ? "overdue" : ""} ${t.status === "Done" ? "done" : ""}">
         <td>${isM ? `<input data-f="title" value="${esc(t.title)}" title="${esc(t.title_orig)}">` : `<div class="ro" title="${esc(t.title_orig)}"><b>${esc(t.title)}</b></div>`}</td>
         <td>${isM ? `<select data-f="priority" data-v="${t.priority}">${sel(cfg.priorities, t.priority)}</select>` : `<div class="ro">${t.priority}</div>`}</td>
-        <td>${isM ? `<input type="date" data-f="deadline" value="${t.deadline || ""}">` : `<div class="ro">${t.deadline || ""}</div>`}</td>
+        <td>${isM ? `<div class="dl ${t.deadline ? "" : "empty"}"><input type="date" data-f="deadline" value="${t.deadline || ""}"></div>` : (t.deadline ? `<div class="ro">${t.deadline}</div>` : `<div class="ro nodl">No deadline</div>`)}</td>
         <td><select data-f="status" data-v="${t.status}">${sel(cfg.statuses, t.status)}</select></td>
         <td><div class="prog"><input type="range" min="0" max="100" step="5" data-f="progress" value="${t.progress}" style="accent-color:${grade(t.progress)}"><span>${t.progress}%</span></div></td>
         <td><input data-f="blocker" value="${esc(t.blocker)}" placeholder="Type in any language…" title="${esc(t.blocker_orig)}"></td>
@@ -371,11 +409,8 @@ async function renderSheet(empId) {
         ${isM ? `<td class="ro"><button class="iconbtn" data-del title="Delete task">✕</button></td>` : ""}
       </tr>`).join("") || `<tr><td colspan="8" class="empty">No tasks yet${isM ? " — add the first one below" : ""}</td></tr>`}
     ${isM ? `<tr class="add">
-        <td><input id="nt-title" placeholder="＋ New task…" title="Type in English, हिंदी, मराठी or Hinglish"></td>
-        <td><select id="nt-pri" data-v="Medium" onchange="this.dataset.v=this.value">${sel(cfg.priorities, "Medium")}</select></td>
-        <td><input type="date" id="nt-date"></td>
-        <td colspan="3"><input id="nt-rem" placeholder="Remarks (optional)"></td>
-        <td colspan="2" class="ro"><button class="btn solid small" id="nt-add">Add task</button></td></tr>` : ""}
+        <td colspan="${8}"><div style="display:flex;gap:10px"><input id="nt-text" style="flex:1" placeholder="＋ Type a task in plain words, e.g. “Fix barcode bug by Friday” — AI fills in the name and deadline" title="English, हिंदी, मराठी or Hinglish. Add a person's name to assign it to them.">
+        <button class="btn solid small" id="nt-add">Add task</button></div></td></tr>` : ""}
     </tbody></table></div>
     <p class="hint">Click any cell to edit — it saves automatically. Type in Hindi, Marathi, English or Hinglish. Spelling is corrected and it is always stored in English. Hover a cell to see what was originally typed. Use Translate (top) to read in another language.</p>`;
 
@@ -404,17 +439,17 @@ async function renderSheet(empId) {
   const add = $("#nt-add");
   if (add) {
     const submit = async () => {
-      const title = $("#nt-title").value.trim(); if (!title) return toast("Enter a task");
+      const text = $("#nt-text").value.trim(); if (!text) return toast("Type a task");
       add.disabled = true; toast("Adding…");
       try {
-        const r = await api("/tasks", { method: "POST", body: JSON.stringify({ employee_id: empId, title, priority: $("#nt-pri").value, deadline: $("#nt-date").value || null, remarks: $("#nt-rem").value }) });
-        toast(r.translated === false ? "Added as typed — AI translation unavailable" : "Task added in English");
+        const r = await api("/tasks/quick", { method: "POST", body: JSON.stringify({ employee_id: empId, text }) });
+        toast((r.employee_id !== empId ? `Added for ${team.members.find(m => m.id === r.employee_id)?.name} · ` : "Task added · ") + (r.deadline ? "due " + r.deadline : "no deadline yet"));
       } catch {}
       setLang("en");
       render();
     };
     add.onclick = submit;
-    $("#nt-title").onkeydown = e => { if (e.key === "Enter") submit(); };
+    $("#nt-text").onkeydown = e => { if (e.key === "Enter") submit(); };
   }
 }
 init();
