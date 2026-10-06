@@ -93,6 +93,12 @@
   .qbox { padding:14px 22px; border-top:1px solid var(--line); background:var(--raise); }
   .qbox textarea { width:100%; box-sizing:border-box; border:1px solid var(--line2); background:var(--card); color:var(--txt); border-radius:12px; padding:12px 14px; font:inherit; resize:vertical; }
   .qbox .qrow { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
+  .rbtn { display:block; width:100%; text-align:left; background:transparent; border:1px dashed var(--line2); border-radius:8px; padding:7px 10px; cursor:pointer; color:var(--txt); font:inherit; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rbtn:hover { border-color:var(--ink); } .rbtn.none { color:var(--faint); font-style:italic; }
+  .rbtn .n { float:right; margin-left:8px; font-size:11px; font-weight:700; background:var(--fill); border-radius:20px; padding:1px 7px; }
+  .thread { display:flex; flex-direction:column; gap:10px; } .rmk { background:var(--raise); border:1px solid var(--line); border-radius:12px; padding:9px 12px; }
+  .rmk.mgr { border-left:3px solid var(--ink); } .rmk .who { font-size:12px; color:var(--mut); margin-bottom:2px; } .rmk .who b { color:var(--txt); }
+  .rmk .rt { white-space:pre-wrap; }
   .qadd { display:flex; gap:8px; padding:14px 22px; border-top:1px solid var(--line); background:var(--raise); }
   .qadd input { flex:1; border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:9px 12px; }
   .modal .mb.rich { white-space:normal; }
@@ -328,6 +334,31 @@ function attentionStrip(data) {
     ${rows.length > 8 ? `<div class="more">+${rows.length - 8} more</div>` : ""}</div>`;
 }
 
+/* remark thread for one task: who said what, newest at the bottom */
+async function remarkThread(taskId, title, empId) {
+  const close = () => { $("#modal").innerHTML = ""; if (tab === String(empId)) render(); };
+  const when = d => new Date(d).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const load = async () => {
+    const rows = await api(`/tasks/${taskId}/remarks?lang=${lang}`);
+    $("#modal").innerHTML = `<div class="overlay"><div class="modal big">
+      <div class="mh"><div><h3>Remarks</h3><small>${esc(title)}</small></div></div>
+      <div class="mb rich"><div class="thread">${rows.map(r => `<div class="rmk ${r.author_role === "manager" ? "mgr" : ""}"><div class="who"><b>${esc(r.author)}</b>${r.author_role === "manager" ? " (Leader)" : ""} · ${when(r.created_at)}</div><div class="rt">${esc(r.text)}</div></div>`).join("") || `<div class="muted">No remarks yet — write the first one below.</div>`}</div></div>
+      <div class="qbox"><textarea id="r-text" rows="3" placeholder="Write a remark in any language — it is saved in English with your name and the time."></textarea>
+        <div class="qrow"><button class="btn" id="r-close">Close</button><button class="btn solid" id="r-add">Post remark</button></div></div></div></div>`;
+    $("#r-close").onclick = close; $(".overlay").onclick = ev => { if (ev.target.classList.contains("overlay")) close(); };
+    const mb = $(".modal .mb"); mb.scrollTop = mb.scrollHeight;
+    const post = async () => {
+      const text = $("#r-text").value.trim(); if (!text) return toast("Write a remark first");
+      $("#r-add").disabled = true;
+      try { const r = await api(`/tasks/${taskId}/remarks`, { method: "POST", body: JSON.stringify({ text }) });
+        toast(r.translated === false ? "Posted as typed — AI translation unavailable" : "Remark posted"); setLang("en"); await load(); }
+      catch { $("#r-add").disabled = false; }
+    };
+    $("#r-add").onclick = post; $("#r-text").onkeydown = ev => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) post(); };
+  };
+  await load();
+}
+
 /* compact card: every not-done task, then blockers while there is room */
 function cardWork(e) {
   const MAX = 4, w = e.open_tasks, b = e.blockers;
@@ -347,7 +378,7 @@ function personDetail(e) {
     <div class="mh">${avatar(e)}<div><h3>${esc(e.name)}</h3><small>${esc(e.position || "Team member")} · ${e.done} done · ${e.avg_progress}% average</small></div></div>
     <div class="mb rich">
       <div class="sect">Tasks (${e.open_tasks.length})</div>
-      ${e.open_tasks.map(t => `<div class="dtask"><b>${esc(t.title)}</b><div class="meta">${esc(meta(t))}</div></div>`).join("") || `<div class="muted">Nothing pending</div>`}
+      ${e.open_tasks.map(t => `<div class="dtask"><b>${esc(t.title)}</b><div class="meta">${esc(meta(t))}</div>${t.remark ? `<div class="meta">💬 ${esc(t.remark)}</div>` : ""}</div>`).join("") || `<div class="muted">Nothing pending</div>`}
       <div class="sect" style="margin-top:18px">Blockers (${e.blockers.length})</div>
       ${e.blockers.map(t => `<div class="dtask"><b>${esc(t.title)}</b>${t.blocker ? `<div class="meta">${esc(t.blocker)}</div>` : ""}</div>`).join("") || `<div class="muted">No blockers</div>`}
     </div>
@@ -435,7 +466,7 @@ async function renderSheet(empId) {
       <div class="grow"><h2>${esc(person.name)}</h2><small>${esc(person.position || "Team member")} · ${open} open · ${tasks.length - open} done</small></div>
       <button class="btn solid" id="sumOne">✦ Summarize</button></div>
     ${lang !== "en" ? `<div class="viewnote">Translated view (${cfg.languages[lang]}). Anything you save is stored in English. <button class="link" id="backEn">Back to English</button></div>` : ""}
-    <div class="sheetwrap"><table><thead><tr><th style="width:24%">Task</th><th>Priority</th><th>Deadline</th><th>Status</th><th>Progress</th><th style="width:20%">Blocker</th><th style="width:20%">Remarks</th>${isM ? "<th></th>" : ""}</tr></thead>
+    <div class="sheetwrap"><table><thead><tr><th style="width:24%">Task</th><th>Priority</th><th>Deadline</th><th>Status</th><th>Progress</th><th style="width:20%">Blocker</th><th style="width:20%">Remarks (thread)</th>${isM ? "<th></th>" : ""}</tr></thead>
     <tbody>${tasks.map(t => `
       <tr data-id="${t.id}" class="${t.overdue ? "overdue" : ""} ${t.status === "Done" ? "done" : ""}">
         <td>${isM ? `<input data-f="title" value="${esc(t.title)}" title="${esc(t.title_orig)}">` : `<div class="ro" title="${esc(t.title_orig)}"><b>${esc(t.title)}</b></div>`}</td>
@@ -443,8 +474,8 @@ async function renderSheet(empId) {
         <td>${isM ? `<div class="dl ${t.deadline ? "" : "empty"}"><input type="date" data-f="deadline" value="${t.deadline || ""}"></div>` : (t.deadline ? `<div class="ro">${t.deadline}</div>` : `<div class="ro nodl">No deadline</div>`)}</td>
         <td><select data-f="status" data-v="${t.status}">${sel(cfg.statuses, t.status)}</select></td>
         <td><div class="prog"><input type="range" min="0" max="100" step="5" data-f="progress" value="${t.progress}" style="accent-color:${grade(t.progress)}"><span>${t.progress}%</span></div></td>
-        <td><input data-f="blocker" value="${esc(t.blocker)}" placeholder="Type in any language…" title="${esc(t.blocker_orig)}"></td>
-        <td><input data-f="remarks" value="${esc(t.remarks)}" placeholder="Type in any language…" title="${esc(t.remarks_orig)}"></td>
+        <td><input data-f="blocker" value="${esc(t.blocker)}" placeholder="What is stopping this task?" title="${esc(t.blocker_orig)}"></td>
+        <td><button class="rbtn ${t.remarks ? "" : "none"}" data-thread="${t.id}" title="Open remark thread">${t.remarks ? esc(t.remarks) : "＋ Add remark"}</button></td>
         ${isM ? `<td class="ro"><button class="iconbtn" data-del title="Delete task">✕</button></td>` : ""}
       </tr>`).join("") || `<tr><td colspan="8" class="empty">No tasks yet${isM ? " — add the first one below" : ""}</td></tr>`}
     ${isM ? `<tr class="add">
@@ -472,6 +503,8 @@ async function renderSheet(empId) {
         if (["status", "title", "blocker", "remarks", "deadline"].includes(f)) render(); else if (el.dataset.v) el.dataset.v = v;
       };
     });
+    const th = row.querySelector("[data-thread]");
+    if (th) th.onclick = () => remarkThread(+id, row.querySelector("[data-f=title]")?.value || row.querySelector("b")?.textContent || "Task", empId);
     const del = row.querySelector("[data-del]");
     if (del) del.onclick = async () => { if (confirm("Delete this task?")) { await api(`/tasks/${id}`, { method: "DELETE" }); render(); } };
   });

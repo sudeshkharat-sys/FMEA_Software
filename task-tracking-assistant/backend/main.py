@@ -157,6 +157,7 @@ def remove_member(emp_id: int, x_user_id: Optional[int] = Header(None)):
     require_manager(u)
     with conn() as c:
         employee_in_team(c, emp_id, u["team_id"])
+        c.execute("DELETE FROM remarks WHERE task_id IN (SELECT id FROM tasks WHERE employee_id=?)", (emp_id,))
         c.execute("DELETE FROM tasks WHERE employee_id=?", (emp_id,))
         c.execute("DELETE FROM users WHERE id=?", (emp_id,))
     return {"ok": True}
@@ -187,7 +188,7 @@ def overview(lang: str = "en", x_user_id: Optional[int] = Header(None)):
                                  for t in open_t if t["status"] == "In Progress"],
                 "blockers": [{"title": t["title"], "blocker": t["blocker"]} for t in blocked],
                 "open_tasks": [{"title": t["title"], "status": t["status"], "progress": t["progress"], "deadline": t["deadline"],
-                                "overdue": t["overdue"], "blocker": t["blocker"]} for t in open_t],
+                                "overdue": t["overdue"], "blocker": t["blocker"], "remark": t["remarks"]} for t in open_t],
             })
     out.sort(key=lambda e: (-e["risk"], e["id"]))  # most at-risk people first
     return out
@@ -221,14 +222,64 @@ def add_task(t: NewTask, x_user_id: Optional[int] = Header(None)):
         raise HTTPException(422, "Bad priority")
     ts = now()
     title_en, ok1 = ai.to_english(t.title)
-    remarks_en, ok2 = ai.to_english(t.remarks)
+    ok2 = True
     with conn() as c:
         employee_in_team(c, t.employee_id, u["team_id"])
         cur = c.execute(
-            """INSERT INTO tasks(employee_id,title,title_orig,priority,deadline,remarks,remarks_orig,created_at,updated_at)
-               VALUES(?,?,?,?,?,?,?,?,?)""",
-            (t.employee_id, title_en, t.title, t.priority, t.deadline or None, remarks_en, t.remarks, ts, ts))
+            """INSERT INTO tasks(employee_id,title,title_orig,priority,deadline,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?)""",
+            (t.employee_id, title_en, t.title, t.priority, t.deadline or None, ts, ts))
+        if t.remarks.strip():
+            ok2 = add_remark(c, cur.lastrowid, u["id"], t.remarks.strip())
     return {"id": cur.lastrowid, "translated": ok1 and ok2}
+
+
+def add_remark(c, task_id, author_id, text):
+    """Append to a task's remark thread (stored in English) and mirror the latest into tasks.remarks."""
+    en, ok = ai.to_english(text)
+    ts = now()
+    c.execute("INSERT INTO remarks(task_id,author_id,text,text_orig,created_at) VALUES(?,?,?,?,?)",
+              (task_id, author_id, en, text, ts))
+    c.execute("UPDATE tasks SET remarks=?, remarks_orig=?, updated_at=? WHERE id=?", (en, text, ts, task_id))
+    return ok
+
+
+def task_for(c, u, task_id):
+    t = c.execute("SELECT t.*, u.team_id FROM tasks t JOIN users u ON u.id=t.employee_id WHERE t.id=?", (task_id,)).fetchone()
+    if not t or t["team_id"] != u["team_id"]:
+        raise HTTPException(404, "No such task")
+    if u["role"] != "manager" and t["employee_id"] != u["id"]:
+        raise HTTPException(403, "Not your task")
+    return t
+
+
+@app.get("/api/tasks/{task_id}/remarks")
+def list_remarks(task_id: int, lang: str = "en", x_user_id: Optional[int] = Header(None)):
+    u = current_user(x_user_id)
+    with conn() as c:
+        task_for(c, u, task_id)
+        rows = [dict(r) for r in c.execute(
+            """SELECT r.id,r.text,r.created_at,r.author_id,COALESCE(a.name,'Earlier note') AS author,a.role AS author_role
+               FROM remarks r LEFT JOIN users a ON a.id=r.author_id WHERE r.task_id=? ORDER BY r.id""", (task_id,))]
+    if lang != "en" and rows:
+        for r, txt in zip(rows, ai.translate_many([r["text"] for r in rows], lang)):
+            r["text"] = txt
+    return rows
+
+
+class RemarkIn(BaseModel):
+    text: str = Field(min_length=1, max_length=1000)
+
+
+@app.post("/api/tasks/{task_id}/remarks")
+def post_remark(task_id: int, r: RemarkIn, x_user_id: Optional[int] = Header(None)):
+    u = current_user(x_user_id)
+    if not r.text.strip():
+        raise HTTPException(422, "Remark is empty")
+    with conn() as c:
+        task_for(c, u, task_id)
+        ok = add_remark(c, task_id, u["id"], r.text.strip())
+    return {"ok": True, "translated": ok}
 
 
 class QuickTask(BaseModel):
@@ -300,6 +351,9 @@ def patch_task(task_id: int, p: TaskPatch, x_user_id: Optional[int] = Header(Non
         if changes.get("priority") and changes["priority"] not in PRIORITIES:
             raise HTTPException(422, "Bad priority")
         sets, vals, translated = [], [], True
+        if (changes.get("remarks") or "").strip():
+            translated = add_remark(c, task_id, u["id"], changes["remarks"].strip())
+        changes.pop("remarks", None)
         for k, v in changes.items():
             if k in TEXT_FIELDS:
                 if k == "title" and not (v or "").strip():
@@ -379,6 +433,8 @@ def delete_task(task_id: int, x_user_id: Optional[int] = Header(None)):
     u = current_user(x_user_id)
     require_manager(u)
     with conn() as c:
+        c.execute("DELETE FROM remarks WHERE task_id=? AND task_id IN (SELECT t.id FROM tasks t JOIN users x ON x.id=t.employee_id WHERE x.team_id=?)",
+                  (task_id, u["team_id"]))
         c.execute("DELETE FROM tasks WHERE id=? AND employee_id IN (SELECT id FROM users WHERE team_id=?)",
                   (task_id, u["team_id"]))
     return {"ok": True}

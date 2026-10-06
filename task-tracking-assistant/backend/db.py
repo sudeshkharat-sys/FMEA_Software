@@ -25,10 +25,23 @@ CREATE TABLE IF NOT EXISTS tasks(
   remarks TEXT DEFAULT '', remarks_orig TEXT DEFAULT '',
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS remarks(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  text TEXT NOT NULL, text_orig TEXT DEFAULT '', created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS translations(
   text TEXT NOT NULL, lang TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(text, lang)
 );
 """
+
+
+def backfill_remarks(c):
+    """Turn each single-line remark that has no thread yet into the first entry of its thread."""
+    c.execute("""INSERT INTO remarks(task_id,author_id,text,text_orig,created_at)
+                 SELECT id,NULL,remarks,COALESCE(NULLIF(remarks_orig,''),remarks),updated_at FROM tasks
+                 WHERE TRIM(remarks)<>'' AND id NOT IN (SELECT task_id FROM remarks)""")
 
 
 def conn():
@@ -44,6 +57,8 @@ def init_db():
         if "team_id" not in cols:  # older demo DB: add columns, put existing people in a team
             c.execute("ALTER TABLE users ADD COLUMN team_id INTEGER")
             c.execute("ALTER TABLE users ADD COLUMN position TEXT DEFAULT ''")
+        # one-time: turn each old single-line remark into the first entry of its thread
+        backfill_remarks(c)
         orphans = c.execute("SELECT COUNT(*) FROM users WHERE team_id IS NULL").fetchone()[0]
         if orphans:
             tid = c.execute("INSERT INTO teams(name,created_at) VALUES('Demo Team',?)",
@@ -89,4 +104,5 @@ def seed_sample(c):
            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         [r + (now, now) for r in rows],
     )
+    backfill_remarks(c)
     return tid
