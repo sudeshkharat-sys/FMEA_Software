@@ -1,6 +1,6 @@
 import re
 import threading
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -172,7 +172,11 @@ def overview(lang: str = "en", x_user_id: Optional[int] = Header(None)):
             tasks = task_view(c.execute("SELECT * FROM tasks WHERE employee_id=? ORDER BY deadline", (e["id"],)), lang)
             open_t = [t for t in tasks if t["status"] != "Done"]
             blocked = [t for t in open_t if t["blocker_en"] or t["status"] == "Blocked"]
+            soon = (date.today() + timedelta(days=2)).isoformat()
+            attention = [{"title": t["title"], "reason": "Overdue" if t["overdue"] else "Blocked" if t in blocked else "Due " + t["deadline"]}
+                         for t in open_t if t["overdue"] or t in blocked or (t["deadline"] and t["deadline"] <= soon)]
             out.append({
+                "attention": attention, "risk": 3 * sum(t["overdue"] for t in tasks) + 2 * len(blocked) + len(attention),
                 "id": e["id"], "name": e["name"], "position": e["position"], "total": len(tasks),
                 "done": sum(t["status"] == "Done" for t in tasks),
                 "in_progress": sum(t["status"] == "In Progress" for t in tasks),
@@ -183,6 +187,7 @@ def overview(lang: str = "en", x_user_id: Optional[int] = Header(None)):
                                  for t in open_t if t["status"] == "In Progress"],
                 "blockers": [{"title": t["title"], "blocker": t["blocker"]} for t in blocked],
             })
+    out.sort(key=lambda e: (-e["risk"], e["id"]))  # most at-risk people first
     return out
 
 

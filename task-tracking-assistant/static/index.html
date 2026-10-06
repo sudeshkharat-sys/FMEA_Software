@@ -77,6 +77,11 @@
   .ecard .foot { margin-top:auto; padding-top:4px; display:flex; justify-content:space-between; align-items:center; }
 
   ul.plain.tight li { margin:3px 0; } .more { color:var(--faint); font-size:12px; margin-top:2px; }
+  .ecard.risk { border-color:var(--ink); }
+  .riskdot { display:inline-block; padding:1px 8px; border-radius:20px; font-size:11px; font-weight:700; background:#d92d20; color:#fff; margin-left:8px; vertical-align:middle; }
+  .attn { background:var(--card); border:1px solid var(--line2); border-left:4px solid #d92d20; border-radius:16px; padding:14px 18px; margin-bottom:16px; }
+  .attn ul { margin:6px 0 0; padding:0; list-style:none; } .attn li { padding:3px 0; cursor:pointer; } .attn li:hover b { text-decoration:underline; }
+  .attn .tag { font-size:11px; font-weight:700; padding:1px 8px; border-radius:20px; background:var(--fill); margin-right:8px; }
   .cardhint { color:var(--faint); font-size:12px; }
   .dl { position:relative; } .dl.empty input { color:transparent; } .dl.empty:focus-within input { color:inherit; }
   .dl.empty::after { content:"Add deadline"; position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--faint); font-style:italic; pointer-events:none; }
@@ -308,6 +313,15 @@ async function render() {
   renderSheet(+tab);
 }
 
+/* blocked, overdue or due within 2 days, across the team */
+function attentionStrip(data) {
+  const rows = data.flatMap(e => e.attention.map(a => ({ ...a, id: e.id, name: e.name })));
+  if (!rows.length) return "";
+  return `<div class="attn"><div class="sect">Needs attention (${rows.length})</div><ul>${rows.slice(0, 8).map(r =>
+    `<li data-att="${r.id}"><span class="tag">${esc(r.reason)}</span><b>${esc(r.name)}</b> · ${esc(r.title)}</li>`).join("")}</ul>
+    ${rows.length > 8 ? `<div class="more">+${rows.length - 8} more</div>` : ""}</div>`;
+}
+
 /* compact card: ongoing work first; blockers only while there is room */
 function cardWork(e) {
   const MAX = 3, w = e.current_work, b = e.blockers;
@@ -346,9 +360,10 @@ async function renderOverview() {
     <div class="pagehead"><div class="grow"><h2>${esc(team.name)}</h2><small>Team overview · open a profile for details</small></div>
       <button class="btn solid" id="sumTeam">✦ Summarize team</button></div>
     <div class="kpis">${kpi(sum("total"), "Total tasks")}${kpi(sum("done"), "Done")}${kpi(sum("in_progress"), "In progress")}${kpi(sum("blocked"), "Blocked")}${kpi(sum("overdue"), "Overdue")}${kpi(avg + "%", "Average progress")}</div>
+    ${attentionStrip(data)}
     ${data.length ? `<div class="cards">${data.map(e => `
-      <div class="ecard" data-id="${e.id}" style="${mstyle(e.id)}">
-        <div class="top">${avatar(e, "lg")}<div><b>${esc(e.name)}</b><small>${esc(e.position || "Team member")}</small></div><span class="pct">${e.avg_progress}%</span></div>
+      <div class="ecard ${e.overdue ? "risk" : ""}" data-id="${e.id}" style="${mstyle(e.id)}">
+        <div class="top">${avatar(e, "lg")}<div><b>${esc(e.name)}${e.overdue ? `<span class="riskdot">${e.overdue} overdue</span>` : ""}</b><small>${esc(e.position || "Team member")}</small></div><span class="pct">${e.avg_progress}%</span></div>
         <div class="body">
           <div class="bar"><i style="width:${e.avg_progress}%;background:${grade(e.avg_progress)}"></i></div>
           <div class="chips"><span class="chip">${e.total} ${e.total === 1 ? "task" : "tasks"}</span><span class="chip">${e.done} done</span><span class="chip">${e.in_progress} in progress</span>
@@ -359,6 +374,7 @@ async function renderOverview() {
       </div>`).join("")}</div>`
     : `<div class="sheetwrap"><div class="empty">No team members yet. Open the Team tab to add people.</div></div>`}`;
   $("#sumTeam").onclick = () => summarize(null);
+  document.querySelectorAll("[data-att]").forEach(li => li.onclick = () => personDetail(data.find(e => e.id === +li.dataset.att)));
   document.querySelectorAll(".ecard").forEach(r => r.onclick = () => personDetail(data.find(e => e.id === +r.dataset.id)));
   document.querySelectorAll("[data-sum]").forEach(b => b.onclick = e => { e.stopPropagation(); summarize(+b.dataset.sum); });
 }
