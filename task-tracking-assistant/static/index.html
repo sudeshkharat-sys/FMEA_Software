@@ -65,6 +65,7 @@
   .ecard:hover { transform:translateY(-3px); box-shadow:var(--shadow); border-color:var(--line2); }
   .ecard .top { padding:18px; display:flex; align-items:center; gap:14px; }
   .ecard .top b { font-size:16px; letter-spacing:-.01em; display:block; } .ecard .top small { color:var(--mut); }
+  .ecard .top .pct small { display:block; font-size:10px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); text-align:right; margin-top:1px; }
   .ecard .top .pct { margin-left:auto; font-size:22px; font-weight:700; letter-spacing:-.03em; }
   .ecard .body { padding:16px 18px 18px; display:flex; flex-direction:column; gap:12px; flex:1; }
   .bar { height:7px; background:var(--fill); border-radius:8px; overflow:hidden; } .bar i { display:block; height:100%; border-radius:8px; transition:width .4s; }
@@ -454,7 +455,7 @@ async function renderOverview() {
     ${attentionStrip(data)}
     ${data.length ? `<div class="cards">${data.map(e => `
       <div class="ecard ${e.overdue ? "risk" : ""}" data-id="${e.id}" style="${mstyle(e.id)}">
-        <div class="top">${avatar(e, "lg")}<div><b>${esc(e.name)}${e.overdue ? `<span class="riskdot">${e.overdue} overdue</span>` : ""}</b><small>${esc(e.position || "Team member")}</small></div><span class="pct">${e.avg_progress}%</span></div>
+        <div class="top">${avatar(e, "lg")}<div><b>${esc(e.name)}${e.overdue ? `<span class="riskdot">${e.overdue} overdue</span>` : ""}</b><small>${esc(e.position || "Team member")}</small></div><span class="pct" title="Average progress of all ${e.total} tasks (done = 100%, not started = 0%)">${e.avg_progress}%<small>avg progress</small></span></div>
         <div class="body">
           <div class="bar"><i style="width:${e.avg_progress}%;background:${grade(e.avg_progress)}"></i></div>
           <div class="chips"><span class="chip">${e.total} ${e.total === 1 ? "task" : "tasks"}</span><span class="chip">${e.done} done</span><span class="chip">${e.in_progress} in progress</span>
