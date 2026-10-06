@@ -89,6 +89,8 @@
   .nodl { color:var(--faint); font-style:italic; }
   .dtask { padding:10px 0; border-bottom:1px solid var(--line); } .dtask:last-child { border-bottom:0; }
   .dtask .meta { color:var(--mut); font-size:12px; margin-top:2px; }
+  .qadd { display:flex; gap:8px; padding:14px 22px; border-top:1px solid var(--line); background:var(--raise); }
+  .qadd input { flex:1; border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:9px 12px; }
   .modal .mb.rich { white-space:normal; }
 
   /* sheet */
@@ -342,17 +344,31 @@ function personDetail(e) {
     <div class="mb rich">
       <div class="sect">Ongoing tasks (${e.current_work.length})</div>
       ${e.current_work.map(t => `<div class="dtask"><b>${esc(t.title)}</b><div class="meta">${meta(t)}</div></div>`).join("") || `<div class="muted">Nothing in progress</div>`}
+      ${e.upcoming && e.upcoming.length ? `<div class="sect" style="margin-top:16px">To do next (${e.upcoming.length})</div>${e.upcoming.map(t => `<div class="dtask"><b>${esc(t.title)}</b><div class="meta">${t.deadline ? "due " + t.deadline : "No deadline"}${t.overdue ? " · overdue" : ""}</div></div>`).join("")}` : ""}
       <div class="sect" style="margin-top:16px">Blockers (${e.blockers.length})</div>
       ${e.blockers.map(t => `<div class="dtask"><b>${esc(t.title)}</b>${t.blocker ? `<div class="meta">${esc(t.blocker)}</div>` : ""}</div>`).join("") || `<div class="muted">No blockers</div>`}
     </div>
+    <div class="qadd"><input id="q-text" placeholder="＋ Type a task in plain words, e.g. “Fix barcode bug by Friday” — AI names it and finds the deadline"><button class="btn solid" id="q-add">Add task</button></div>
     <div class="mf"><button class="btn" id="m-sum">✦ Summarize</button><button class="btn" id="m-close">Close</button><button class="btn solid" id="m-open">Open sheet →</button></div></div></div>`;
   $("#m-close").onclick = close; $(".overlay").onclick = ev => { if (ev.target.classList.contains("overlay")) close(); };
   $("#m-open").onclick = () => { close(); tab = String(e.id); render(); };
   $("#m-sum").onclick = () => { close(); summarize(e.id); };
+  const add = async () => {
+    const text = $("#q-text").value.trim(); if (!text) return toast("Type a task");
+    $("#q-add").disabled = true; toast("Adding…");
+    try {
+      const r = await api("/tasks/quick", { method: "POST", body: JSON.stringify({ employee_id: e.id, text }) });
+      toast(`Added “${r.title}” · ` + (r.deadline ? "due " + r.deadline : "no deadline yet"));
+      setLang("en"); await renderOverview();
+      const fresh = ovData.find(x => x.id === e.id); if (fresh) personDetail(fresh); else close();
+    } catch { $("#q-add").disabled = false; }
+  };
+  $("#q-add").onclick = add; $("#q-text").onkeydown = ev => { if (ev.key === "Enter") add(); };
 }
 
+let ovData = [];
 async function renderOverview() {
-  const data = await api(`/overview?lang=${lang}`);
+  const data = ovData = await api(`/overview?lang=${lang}`);
   const sum = k => data.reduce((a, e) => a + e[k], 0);
   const kpi = (n, label) => `<div class="kpi"><b>${n}</b><span>${label}</span></div>`;
   const avg = data.length ? Math.round(data.reduce((a, e) => a + e.avg_progress, 0) / data.length) : 0;

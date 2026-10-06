@@ -186,6 +186,7 @@ def overview(lang: str = "en", x_user_id: Optional[int] = Header(None)):
                 "current_work": [{"title": t["title"], "progress": t["progress"], "deadline": t["deadline"], "overdue": t["overdue"]}
                                  for t in open_t if t["status"] == "In Progress"],
                 "blockers": [{"title": t["title"], "blocker": t["blocker"]} for t in blocked],
+                "upcoming": [{"title": t["title"], "deadline": t["deadline"], "overdue": t["overdue"]} for t in open_t if t["status"] == "To Do"],
             })
     out.sort(key=lambda e: (-e["risk"], e["id"]))  # most at-risk people first
     return out
@@ -396,7 +397,7 @@ def download_report(period: str = "weekly", x_user_id: Optional[int] = Header(No
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html")
+    return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
