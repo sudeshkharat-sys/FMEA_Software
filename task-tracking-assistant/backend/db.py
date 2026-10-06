@@ -1,8 +1,8 @@
 import sqlite3
 from datetime import date, datetime, timedelta
-from pathlib import Path
+from .paths import DATA_DIR
 
-DB_PATH = Path(__file__).resolve().parent.parent / "tracker.db"
+DB_PATH = DATA_DIR / "tracker.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS teams(

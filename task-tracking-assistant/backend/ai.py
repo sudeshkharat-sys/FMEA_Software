@@ -15,7 +15,9 @@ LANGS = {
     "hinglish": "Hinglish (Hindi written in Roman/Latin letters, mixing common English words naturally, like people text in India)",
 }
 
-_env = Path(__file__).resolve().parent.parent / ".env"
+from .paths import DATA_DIR
+
+_env = DATA_DIR / ".env"
 if _env.exists():
     for line in _env.read_text().splitlines():
         if "=" in line and not line.startswith("#"):

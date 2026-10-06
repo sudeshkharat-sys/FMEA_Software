@@ -9,11 +9,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import ai, report
+from . import ai, auth, report
 from .db import conn, create_team, init_db, seed_sample
 
 app = FastAPI(title="Task Tracking Assistant")
-STATIC = Path(__file__).resolve().parent.parent / "static"
+auth.install(app)
+from .paths import STATIC
 
 STATUSES = ["To Do", "In Progress", "Blocked", "Done"]
 PRIORITIES = ["Low", "Medium", "High"]

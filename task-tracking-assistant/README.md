@@ -31,3 +31,12 @@ Data is stored in `tracker.db` (delete it, with the server stopped, to start ove
 `GET /api/config` · `GET /api/overview` · `GET /api/employees/{id}/tasks?lang=` · `POST /api/tasks` ·
 `PATCH /api/tasks/{id}` · `DELETE /api/tasks/{id}` · `GET /api/report?period=weekly|monthly`
 (all send `X-User-Id` to identify the acting user)
+
+## Deploy as an exe (LAN, password protected)
+1. Build `dist/TaskFlow.exe`: run `build_exe.bat` on Windows, or run the **Build TaskFlow.exe** GitHub Action and download the artifact.
+2. Copy that one file to the server folder (e.g. the CyberArk-managed PC) and double-click it. The console prints the team link, e.g. `http://192.168.1.20:8000`.
+3. First run creates a random login password (printed once and saved in `FIRST_RUN_PASSWORD.txt`). Share it with the team, then delete the file. Change it with `TaskFlow.exe --set-password`.
+4. Everyone on the same Wi-Fi/LAN opens the link and signs in. Allow the port (8000, or `--port N`) in Windows Firewall if others cannot connect.
+5. Put AI keys in a `.env` file **next to the exe** (same format as `.env` above).
+6. **Updating:** stop the exe, replace `TaskFlow.exe` with the new one, start it. `tracker.db`, `.env` and the password live next to the exe and are kept.
+Running from source (`uvicorn`) has no password; only the exe launcher turns the login on.

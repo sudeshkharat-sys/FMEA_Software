@@ -235,6 +235,7 @@ const mstyle = id => { const [bg, deep] = PALETTE[(id - 1) % PALETTE.length]; re
 
 async function api(path, opts = {}) {
   const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", ...(me ? { "X-User-Id": me.id } : {}), ...(opts.headers || {}) } });
+  if (r.status === 401) { location.href = "/login"; throw new Error(401); }
   if (!r.ok) {
     const d = await r.json().catch(() => ({}));
     toast(typeof d.detail === "string" ? d.detail : "Something went wrong");

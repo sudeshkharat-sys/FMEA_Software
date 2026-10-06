@@ -1,0 +1,23 @@
+name: Build TaskFlow.exe
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["task-tracking-assistant/**"]
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: task-tracking-assistant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt pyinstaller python-multipart
+      - run: python -m PyInstaller --noconfirm taskflow.spec
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TaskFlow-exe
+          path: task-tracking-assistant/dist/TaskFlow.exe
