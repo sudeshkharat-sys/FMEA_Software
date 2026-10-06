@@ -380,7 +380,7 @@ def _facts_and_fallback(c, people, today):
     Order everywhere: finished-everything people first, then ongoing work, then the rest; High priority first."""
     facts, finished = [f"Today: {today}"], []
     tot = done = overdue = 0
-    ongoing, remaining, blockers, late = [], [], [], []
+    ongoing, remaining, blockers, late, key = [], [], [], [], []
     multi = len(people) > 1
     for p in people:
         tasks = [dict(t) for t in c.execute("SELECT * FROM tasks WHERE employee_id=?", (p["id"],))]
@@ -406,6 +406,11 @@ def _facts_and_fallback(c, people, today):
             if t["status"] == "Done":
                 continue
             r = PRIO_RANK.get(t["priority"], 1)
+            why = [x for x, on in (("OVERDUE since " + str(t["deadline"]), od), ("blocked: " + t["blocker"] if t["blocker"] else "blocked", bool(t["blocker"]) or t["status"] == "Blocked")) if on]
+            if t["priority"] == "High" and not why and t["status"] == "In Progress":
+                why = [f"high priority, {t['progress']}% done"]
+            if why:  # most important first: High priority + a problem, then other problems
+                key.append((r, 0 if len(why) > 1 else 1, f"{who}{t['title']} [{t['priority']}] - " + ", ".join(why)))
             line = f"{who}{t['title']} [{t['priority']}]"
             if t["status"] == "In Progress":
                 ongoing.append((r, f"{line} ({t['progress']}%)"))
@@ -418,21 +423,23 @@ def _facts_and_fallback(c, people, today):
     if not tot:
         return "\n".join(facts), "• No tasks yet."
     ongoing, remaining, blockers, late = ([x for _, x in sorted(g, key=lambda i: i[0])] for g in (ongoing, remaining, blockers, late))
+    key = [x for *_, x in sorted(key)][:8]
+    if key:
+        facts.insert(1, "KEY POINTS (already ranked, most important first): " + " // ".join(key))
     lines = []
-    if finished:
-        lines.append(("• " + ", ".join(finished) + (" have" if len(finished) > 1 else " has") + " completed all tasks.")
-                     if multi else "• Completed all tasks.")
-        if not multi:
-            return "\n".join(facts), "\n".join(lines)
-
     def section(label, items):
         if items:
             lines.append(f"• {label}:")
             lines.extend(f"   – {x}" for x in items)
+    done_line = (("• " + ", ".join(finished) + (" have" if len(finished) > 1 else " has") + " completed all tasks.")
+                 if multi else "• Completed all tasks.") if finished else None
+    if done_line and not multi:  # one person who finished everything: that is the whole story
+        return "\n".join(facts), done_line
+    section("Key points", key)
     section("Ongoing (high priority first)", ongoing or ["Nothing in progress right now"])
     section("Remaining (high priority first)", remaining)
-    section("Blockers", blockers)
-    section("Overdue", late)
+    if done_line:  # team view: people who finished everything come after the important items
+        lines.append(done_line)
     lines.append(f"• Overall: {done} of {tot} tasks done ({round(100 * done / tot)}%)")
     return "\n".join(facts), "\n".join(lines)
 

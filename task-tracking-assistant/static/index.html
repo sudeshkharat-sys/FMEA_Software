@@ -56,7 +56,7 @@
 
   /* member colour: pastel, Apple-style. Inline vars --m-bg / --m-deep per member. */
   .mtint { background:color-mix(in srgb, var(--m-bg) var(--tint), var(--card)); }
-  .avatar { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:var(--m-bg); color:#1b1b1f; font-weight:700; flex:none; font-size:14px; }
+  .avatar { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:linear-gradient(135deg,var(--m-bg),var(--m-deep)); color:#fff; font-weight:700; flex:none; box-shadow:0 2px 6px color-mix(in srgb,var(--m-deep) 35%,transparent); font-size:14px; }
   .avatar.lg { width:56px; height:56px; font-size:19px; } .avatar.sm { width:22px; height:22px; font-size:10px; }
 
   /* member cards */
@@ -100,16 +100,19 @@
   .rmk.mgr { border-left:3px solid var(--ink); } .rmk .who { font-size:12px; color:var(--mut); margin-bottom:2px; } .rmk .who b { color:var(--txt); }
   .rmk .rt { white-space:pre-wrap; }
   .sum .srow { margin:7px 0 2px; } .sum .srow b { color:var(--txt); font-weight:800; } .sum .sitem { margin:2px 0 2px 18px; color:var(--mut); }
-  /* priority colours */
-  select[data-f=priority], .pchip { border-radius:20px; padding-left:12px; font-weight:700; }
-  select[data-f=priority][data-v="High"], .pchip.High { background:color-mix(in srgb,#d92d20 16%,transparent); color:#b42318; font-weight:800; }
-  select[data-f=priority][data-v="Medium"], .pchip.Medium { background:color-mix(in srgb,#f79009 20%,transparent); color:#b54708; }
-  select[data-f=priority][data-v="Low"], .pchip.Low { background:color-mix(in srgb,#12b76a 16%,transparent); color:#067647; font-weight:600; }
-  :root[data-theme=dark] select[data-f=priority][data-v="High"], :root[data-theme=dark] .pchip.High { color:#ff9c93; }
-  :root[data-theme=dark] select[data-f=priority][data-v="Medium"], :root[data-theme=dark] .pchip.Medium { color:#fdb022; }
-  :root[data-theme=dark] select[data-f=priority][data-v="Low"], :root[data-theme=dark] .pchip.Low { color:#6ce9a6; }
-  .pchip { display:inline-block; padding:3px 12px; font-size:13px; }
-  tr[data-p=High] td:first-child { box-shadow:inset 4px 0 0 #d92d20; } tr[data-p=Medium] td:first-child { box-shadow:inset 4px 0 0 #f79009; } tr[data-p=Low] td:first-child { box-shadow:inset 4px 0 0 #12b76a; }
+  /* priority + status: light grey pill, coloured text */
+  select[data-f=priority], select[data-f=status], .pchip, .schip { border:0; background:var(--fill); border-radius:20px; font-weight:700; }
+  select[data-f=priority] { padding-left:12px; } .pchip, .schip { display:inline-block; padding:3px 12px; font-size:13px; }
+  select[data-f=priority][data-v="High"], .pchip.High { color:#d92d20; } select[data-f=priority][data-v="Medium"], .pchip.Medium { color:#c27803; } select[data-f=priority][data-v="Low"], .pchip.Low { color:#16a34a; }
+  select[data-f=status][data-v="To Do"], .schip.ToDo { color:#6b7280; } select[data-f=status][data-v="In Progress"], .schip.InProgress { color:#2563eb; }
+  select[data-f=status][data-v="Blocked"], .schip.Blocked { color:#d92d20; } select[data-f=status][data-v="Done"], .schip.Done { color:#16a34a; }
+  :root[data-theme=dark] select[data-f=priority][data-v="High"], :root[data-theme=dark] select[data-f=status][data-v="Blocked"] { color:#ff8a80; }
+  :root[data-theme=dark] select[data-f=priority][data-v="Medium"] { color:#fbbf24; } :root[data-theme=dark] select[data-f=priority][data-v="Low"], :root[data-theme=dark] select[data-f=status][data-v="Done"] { color:#4ade80; }
+  :root[data-theme=dark] select[data-f=status][data-v="In Progress"] { color:#60a5fa; }
+  select[data-f] option { background:var(--card); color:var(--txt); font-weight:500; }
+  /* task names stand out */
+  td textarea.grow[data-f=title], tr[data-id] td .ro b { font-weight:650; font-size:15px; letter-spacing:-.005em; }
+  tr[data-p=High] td:first-child { box-shadow:inset 3px 0 0 #d92d20; } tr[data-p=Medium] td:first-child { box-shadow:inset 3px 0 0 #f79009; } tr[data-p=Low] td:first-child { box-shadow:inset 3px 0 0 #12b76a; }
   td { vertical-align:middle; }
   .qadd { display:flex; gap:8px; padding:14px 22px; border-top:1px solid var(--line); background:var(--raise); }
   .qadd input { flex:1; border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:9px 12px; }
@@ -130,12 +133,7 @@
   td textarea.grow:focus { outline:2px solid var(--ink); outline-offset:-2px; background:var(--card); border-radius:8px; }
   td input:focus, td select:focus { outline:2px solid var(--ink); outline-offset:-2px; background:var(--card); border-radius:8px; }
   td select { font-weight:600; cursor:pointer; }
-  select[data-f=status] { border-radius:20px; padding:5px 10px; margin:6px; width:calc(100% - 12px); border:1px solid var(--line2); }
-  select[data-f=status][data-v="To Do"] { color:var(--mut); }
-  select[data-f=status][data-v="In Progress"] { background:var(--fill); }
-  select[data-f=status][data-v="Blocked"] { border:1.5px solid var(--ink); }
-  select[data-f=status][data-v="Done"] { background:var(--ink); color:var(--on-ink); border-color:var(--ink); }
-  select[data-f=status] option { background:var(--card); color:var(--txt); }
+  select[data-f=status] { padding:5px 10px; margin:6px; width:calc(100% - 12px); }
   select[data-f=priority][data-v="Low"] { color:var(--mut); font-weight:500; } select[data-f=priority][data-v="High"] { font-weight:800; }
   tr.overdue input[type=date] { font-weight:800; text-decoration:underline; }
   .prog { display:flex; align-items:center; gap:8px; padding:8px; } .prog input[type=range] { flex:1; min-width:70px; padding:0; } .prog span { width:38px; text-align:right; font-weight:600; font-size:12px; color:var(--mut); }
@@ -228,8 +226,8 @@ let lang = "en";   // English is always the default; the Translate button change
 function setLang(l) { lang = l; $("#transLabel").textContent = cfg.languages[l]; document.querySelectorAll("#transMenu button").forEach(b => b.classList.toggle("on", b.dataset.l === l)); }
 
 /* Apple-15-style faint colours, one per member (never white / black / gray). [pastel, deeper accent] */
-const PALETTE = [["#f4cfd8","#c97a8e"],["#f3e7b1","#b89c2e"],["#d2e2cb","#6f9a63"],["#cbdeed","#5e8db7"],["#dcd4f0","#8a78c2"],
-                 ["#f7d9c2","#cf9058"],["#c9ecdf","#5cae96"],["#ecd0ea","#b36fb0"],["#f6cdc5","#cc7566"],["#dfe6c2","#94a24f"]];
+const PALETTE = [["#818cf8","#4f46e5"],["#f472b6","#db2777"],["#2dd4bf","#0d9488"],["#fb923c","#ea580c"],["#38bdf8","#0284c7"],
+                 ["#a78bfa","#7c3aed"],["#4ade80","#16a34a"],["#fb7185","#e11d48"],["#fbbf24","#d97706"],["#22d3ee","#0891b2"]];
 /* progress grade: 0% red -> 50% amber -> 100% green */
 const grade = p => `hsl(${Math.round(Math.max(0, Math.min(100, p)) * 1.2)} 68% 44%)`;
 const mstyle = id => { const [bg, deep] = PALETTE[(id - 1) % PALETTE.length]; return `--m-bg:${bg};--m-deep:${deep}`; };

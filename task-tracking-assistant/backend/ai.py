@@ -279,11 +279,13 @@ def summarize(facts: str, lang: str, scope: str) -> str:
     system = (
         f"You help a team lead understand {scope}. Write the summary in {LANGS[lang]}. " + SCRIPT_RULES[lang] + " "
         "Use ONLY the facts given; never invent tasks, numbers or names. Format: plain text. Each group starts with a line '• Label:' (a short label, then a colon) and every item of that group goes on its OWN following line starting with '   – '. Never put several items on one line and NEVER use the '|' character or ';' to separate items. No markdown, no headings, no preamble. "
-        "ORDER IS FIXED: (1) if a person is marked HAS COMPLETED ALL TASKS, the very first line says so (e.g. 'Priya has completed all tasks.'); "
-        "(2) then ONGOING tasks, mentioning progress % and any deadline or overdue; (3) then REMAINING tasks (to do / blocked); "
-        "(4) then blockers and overdue items; (5) last, one line of overall progress. "
+        "ORDER IS FIXED. First a group 'Key points': the 2 to 4 most important things, taken from the KEY POINTS line (High priority items that are overdue, blocked or at risk come first). "
+        + ("Then ONGOING tasks, then REMAINING tasks, then blockers. People marked HAS COMPLETED ALL TASKS get one line near the end (e.g. 'Priya has completed all tasks.'), not at the top. "
+           if "team" in scope else
+           "If the person is marked HAS COMPLETED ALL TASKS, reply with only one line saying so. Otherwise: Key points, then ONGOING (progress %, deadline), then REMAINING, then blockers. ")
+        + "Last, one line 'Overall:' with overall progress. "
         "Inside each group list High priority first, then Medium, then Low, and say the priority for High items. "
-        "Skip a group that has nothing. Do not list COMPLETED tasks one by one unless nothing else exists."
+"Skip a group that has nothing. Do not list COMPLETED tasks one by one unless nothing else exists."
     )
     req = _request([{"role": "system", "content": system}, {"role": "user", "content": facts}], json_mode=False)
     r = httpx.post(req["url"], headers=req["headers"], json=req["body"], timeout=45, verify=_verify())
