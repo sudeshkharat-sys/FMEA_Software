@@ -396,9 +396,9 @@ def _facts_and_fallback(c, people, today):
                    and (grp != "Open" or t["status"] in ("To Do", "Blocked"))]
             for t in sel:
                 od = bool(t["deadline"]) and t["deadline"] < today and t["status"] != "Done"
-                facts.append(f"- [{label}] [{t['priority']} priority] {t['title']} | {t['status']} | {t['progress']}% | due {t['deadline'] or 'n/a'}"
-                             + (" | OVERDUE" if od else "") + (f" | blocker: {t['blocker']}" if t["blocker"] else "")
-                             + (f" | remarks: {t['remarks']}" if t["remarks"] else ""))
+                facts.append(f"- [{label}] [{t['priority']} priority] {t['title']}; {t['status']}; {t['progress']}%; due {t['deadline'] or 'n/a'}"
+                             + ("; OVERDUE" if od else "") + (f"; blocker: {t['blocker']}" if t["blocker"] else "")
+                             + (f"; remarks: {t['remarks']}" if t["remarks"] else ""))
         who = f"{p['name']}: " if multi else ""
         for t in tasks:
             od = bool(t["deadline"]) and t["deadline"] < today and t["status"] != "Done"
@@ -421,17 +421,19 @@ def _facts_and_fallback(c, people, today):
     lines = []
     if finished:
         lines.append(("• " + ", ".join(finished) + (" have" if len(finished) > 1 else " has") + " completed all tasks.")
-                     if multi else "• Has completed all tasks.")
-    if not multi and finished:
-        return "\n".join(facts), "\n".join(lines)
-    lines.append("• Ongoing (high priority first): " + ("; ".join(ongoing) if ongoing else "nothing in progress right now") + ".")
-    if remaining:
-        lines.append("• Remaining (high priority first): " + "; ".join(remaining) + ".")
-    if blockers:
-        lines.append("• Blockers: " + "; ".join(blockers) + ".")
-    if late:
-        lines.append("• Overdue: " + "; ".join(late) + ".")
-    lines.append(f"• Overall: {done} of {tot} tasks done ({round(100 * done / tot)}%).")
+                     if multi else "• Completed all tasks.")
+        if not multi:
+            return "\n".join(facts), "\n".join(lines)
+
+    def section(label, items):
+        if items:
+            lines.append(f"• {label}:")
+            lines.extend(f"   – {x}" for x in items)
+    section("Ongoing (high priority first)", ongoing or ["Nothing in progress right now"])
+    section("Remaining (high priority first)", remaining)
+    section("Blockers", blockers)
+    section("Overdue", late)
+    lines.append(f"• Overall: {done} of {tot} tasks done ({round(100 * done / tot)}%)")
     return "\n".join(facts), "\n".join(lines)
 
 

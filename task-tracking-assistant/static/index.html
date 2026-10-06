@@ -99,6 +99,18 @@
   .thread { display:flex; flex-direction:column; gap:10px; } .rmk { background:var(--raise); border:1px solid var(--line); border-radius:12px; padding:9px 12px; }
   .rmk.mgr { border-left:3px solid var(--ink); } .rmk .who { font-size:12px; color:var(--mut); margin-bottom:2px; } .rmk .who b { color:var(--txt); }
   .rmk .rt { white-space:pre-wrap; }
+  .sum .srow { margin:7px 0 2px; } .sum .srow b { color:var(--txt); font-weight:800; } .sum .sitem { margin:2px 0 2px 18px; color:var(--mut); }
+  /* priority colours */
+  select[data-f=priority], .pchip { border-radius:20px; padding-left:12px; font-weight:700; }
+  select[data-f=priority][data-v="High"], .pchip.High { background:color-mix(in srgb,#d92d20 16%,transparent); color:#b42318; font-weight:800; }
+  select[data-f=priority][data-v="Medium"], .pchip.Medium { background:color-mix(in srgb,#f79009 20%,transparent); color:#b54708; }
+  select[data-f=priority][data-v="Low"], .pchip.Low { background:color-mix(in srgb,#12b76a 16%,transparent); color:#067647; font-weight:600; }
+  :root[data-theme=dark] select[data-f=priority][data-v="High"], :root[data-theme=dark] .pchip.High { color:#ff9c93; }
+  :root[data-theme=dark] select[data-f=priority][data-v="Medium"], :root[data-theme=dark] .pchip.Medium { color:#fdb022; }
+  :root[data-theme=dark] select[data-f=priority][data-v="Low"], :root[data-theme=dark] .pchip.Low { color:#6ce9a6; }
+  .pchip { display:inline-block; padding:3px 12px; font-size:13px; }
+  tr[data-p=High] td:first-child { box-shadow:inset 4px 0 0 #d92d20; } tr[data-p=Medium] td:first-child { box-shadow:inset 4px 0 0 #f79009; } tr[data-p=Low] td:first-child { box-shadow:inset 4px 0 0 #12b76a; }
+  td { vertical-align:middle; }
   .qadd { display:flex; gap:8px; padding:14px 22px; border-top:1px solid var(--line); background:var(--raise); }
   .qadd input { flex:1; border:1px solid var(--line2); background:var(--card); border-radius:10px; padding:9px 12px; }
   .modal .mb.rich { white-space:normal; }
@@ -168,6 +180,19 @@
   .actions .btn { padding:11px 18px; }
   .link { background:none; border:0; color:var(--txt); font-weight:600; padding:6px 0; text-decoration:underline; text-underline-offset:3px; }
   @media (max-width:640px){ .row,.two,.addmember { grid-template-columns:1fr; } main { padding:16px 12px; } header { padding:10px 12px; } }
+  /* narrower screens: each task becomes a card */
+  @media (max-width:1000px) {
+    table { min-width:0; } .sheetwrap { background:transparent; border:0; overflow:visible; }
+    thead { display:none; } table, tbody, tr, td { display:block; width:auto; max-width:100%; box-sizing:border-box; }
+    tr[data-id] { background:var(--card); border:1px solid var(--line); border-radius:16px; margin:0 0 12px; padding:8px 6px; overflow:hidden; }
+    tr[data-id] td { display:grid; grid-template-columns:92px minmax(0,1fr); align-items:center; gap:8px; padding:3px 8px; }
+    tr[data-id] td > * { min-width:0; max-width:100%; box-sizing:border-box; } table { width:100%; max-width:100%; }
+    tr[data-id] select[data-f=priority] { width:auto; min-width:110px; }
+    tr[data-id] td::before { content:attr(data-label); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); font-weight:600; }
+    tr[data-id] td[data-label="Task"] { grid-template-columns:1fr; font-size:16px; } tr[data-id] td[data-label="Task"]::before { display:none; }
+    tr[data-id] td:not([data-label]) { display:block; text-align:right; }
+    tr.add { display:block; background:var(--card); border:1px solid var(--line2); border-radius:16px; } tr.add td { display:block; border:0; }
+  }
 </style>
 </head>
 <body>
@@ -287,6 +312,18 @@ function showSetup(first) {
   };
 }
 
+/* summary text -> HTML: "• Label:" lines get a bold dark label, "–" items are indented, pipes never shown */
+function fmtSummary(t) {
+  return String(t).replace(/\*\*/g, "").split("\n").map(raw => {
+    const l = raw.replace(/\s*\|\s*/g, " · ").replace(/\s+$/, "");
+    const item = l.match(/^\s+[–\-•]\s*(.*)$/);
+    if (item) return `<div class="sitem">– ${esc(item[1])}</div>`;
+    const m = l.match(/^•\s*([^:]{1,60}):\s*(.*)$/);
+    if (m) return `<div class="srow"><b>${esc(m[1])}:</b>${m[2] ? " " + esc(m[2]) : ""}</div>`;
+    return l.trim() ? `<div class="srow">${esc(l)}</div>` : "";
+  }).join("");
+}
+
 /* ---------- summarize modal ---------- */
 async function summarize(empId) {
   const person = empId ? team.members.find(u => u.id === empId) : null;
@@ -299,7 +336,7 @@ async function summarize(empId) {
   try {
     const r = await api(`/summary?lang=${lang}${empId ? "&employee_id=" + empId : ""}`, { method: "POST" });
     const note = !r.ai ? "Rule-based summary (AI off or unavailable)" : "Written by AI from the current tasks";
-    $("#modal").innerHTML = `<div class="overlay"><div class="modal">${head}<div class="mb">${esc(r.summary)}</div>
+    $("#modal").innerHTML = `<div class="overlay"><div class="modal">${head}<div class="mb rich sum">${fmtSummary(r.summary)}</div>
       <div class="mf"><span class="note">${note}</span><button class="btn" id="m-copy">Copy</button><button class="btn solid" id="m-close">Close</button></div></div></div>`;
     $("#m-close").onclick = close; $(".overlay").onclick = e => { if (e.target.classList.contains("overlay")) close(); };
     $("#m-copy").onclick = () => { navigator.clipboard?.writeText(r.summary); toast("Copied"); };
@@ -470,9 +507,9 @@ async function renderSheet(empId) {
     ${lang !== "en" ? `<div class="viewnote">Translated view (${cfg.languages[lang]}). Anything you save is stored in English. <button class="link" id="backEn">Back to English</button></div>` : ""}
     <div class="sheetwrap"><table><thead><tr><th style="width:24%">Task</th><th>Priority</th><th>Deadline</th><th>Status</th><th>Progress</th><th style="width:20%">Blocker</th><th style="width:20%">Remarks (thread)</th>${isM ? "<th></th>" : ""}</tr></thead>
     <tbody>${tasks.map(t => `
-      <tr data-id="${t.id}" class="${t.overdue ? "overdue" : ""} ${t.status === "Done" ? "done" : ""}">
+      <tr data-id="${t.id}" data-p="${t.priority}" class="${t.overdue ? "overdue" : ""} ${t.status === "Done" ? "done" : ""}">
         <td>${isM ? `<textarea class="grow" rows="1" data-f="title" title="${esc(t.title_orig)}">${esc(t.title)}</textarea>` : `<div class="ro" title="${esc(t.title_orig)}"><b>${esc(t.title)}</b></div>`}</td>
-        <td>${isM ? `<select data-f="priority" data-v="${t.priority}">${sel(cfg.priorities, t.priority)}</select>` : `<div class="ro">${t.priority}</div>`}</td>
+        <td>${isM ? `<select data-f="priority" data-v="${t.priority}">${sel(cfg.priorities, t.priority)}</select>` : `<div class="ro"><span class="pchip ${t.priority}">${t.priority}</span></div>`}</td>
         <td>${isM ? `<div class="dl ${t.deadline ? "" : "empty"}"><input type="date" data-f="deadline" value="${t.deadline || ""}"></div>` : (t.deadline ? `<div class="ro">${t.deadline}</div>` : `<div class="ro nodl">No deadline</div>`)}</td>
         <td><select data-f="status" data-v="${t.status}">${sel(cfg.statuses, t.status)}</select></td>
         <td><div class="prog"><input type="range" min="0" max="100" step="5" data-f="progress" value="${t.progress}" style="accent-color:${grade(t.progress)}"><span>${t.progress}%</span></div></td>
@@ -486,6 +523,8 @@ async function renderSheet(empId) {
     </tbody></table></div>
     <p class="hint">Click any cell to edit — it saves automatically. Type in Hindi, Marathi, English or Hinglish. Spelling is corrected and it is always stored in English. Hover a cell to see what was originally typed. Use Translate (top) to read in another language.</p>`;
 
+  const heads = [...document.querySelectorAll("thead th")].map(h => h.textContent.replace(/\s*\(thread\)/, "").trim());
+  document.querySelectorAll("tbody tr[data-id]").forEach(tr => [...tr.children].forEach((td, i) => { if (heads[i]) td.dataset.label = heads[i]; }));
   const fit = el => { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; };
   document.querySelectorAll("textarea.grow").forEach(el => { fit(el); el.oninput = () => fit(el); el.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); el.blur(); } }; });
   $("#sumOne").onclick = () => summarize(empId);
@@ -504,7 +543,7 @@ async function renderSheet(empId) {
           toast(isText ? (r.translated === false ? "Saved as typed — AI translation unavailable" : "Saved in English") : "Saved");
         } catch {}
         if (isText) setLang("en");
-        if (["status", "title", "blocker", "remarks", "deadline"].includes(f)) render(); else if (el.dataset.v) el.dataset.v = v;
+        if (["status", "title", "blocker", "remarks", "deadline"].includes(f)) render(); else if (el.dataset.v) { el.dataset.v = v; if (f === "priority") row.dataset.p = v; }
       };
     });
     const th = row.querySelector("[data-thread]");

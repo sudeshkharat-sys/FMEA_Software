@@ -278,7 +278,7 @@ def summarize(facts: str, lang: str, scope: str) -> str:
     lang = lang if lang in LANGS else "en"
     system = (
         f"You help a team lead understand {scope}. Write the summary in {LANGS[lang]}. " + SCRIPT_RULES[lang] + " "
-        "Use ONLY the facts given; never invent tasks, numbers or names. Format: short lines, each starting with '• '. No headings, no preamble. "
+        "Use ONLY the facts given; never invent tasks, numbers or names. Format: plain text. Each group starts with a line '• Label:' (a short label, then a colon) and every item of that group goes on its OWN following line starting with '   – '. Never put several items on one line and NEVER use the '|' character or ';' to separate items. No markdown, no headings, no preamble. "
         "ORDER IS FIXED: (1) if a person is marked HAS COMPLETED ALL TASKS, the very first line says so (e.g. 'Priya has completed all tasks.'); "
         "(2) then ONGOING tasks, mentioning progress % and any deadline or overdue; (3) then REMAINING tasks (to do / blocked); "
         "(4) then blockers and overdue items; (5) last, one line of overall progress. "
