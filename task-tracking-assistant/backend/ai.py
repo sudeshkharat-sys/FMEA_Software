@@ -278,8 +278,12 @@ def summarize(facts: str, lang: str, scope: str) -> str:
     lang = lang if lang in LANGS else "en"
     system = (
         f"You help a team lead understand {scope}. Write the summary in {LANGS[lang]}. " + SCRIPT_RULES[lang] + " "
-        "Use ONLY the facts given; never invent tasks, numbers or names. Format: 4 to 7 short lines, each starting with '• '. "
-        "Cover: overall progress, what is done, what is in progress, blockers, and what needs attention (overdue or at-risk work). No headings, no preamble."
+        "Use ONLY the facts given; never invent tasks, numbers or names. Format: short lines, each starting with '• '. No headings, no preamble. "
+        "ORDER IS FIXED: (1) if a person is marked HAS COMPLETED ALL TASKS, the very first line says so (e.g. 'Priya has completed all tasks.'); "
+        "(2) then ONGOING tasks, mentioning progress % and any deadline or overdue; (3) then REMAINING tasks (to do / blocked); "
+        "(4) then blockers and overdue items; (5) last, one line of overall progress. "
+        "Inside each group list High priority first, then Medium, then Low, and say the priority for High items. "
+        "Skip a group that has nothing. Do not list COMPLETED tasks one by one unless nothing else exists."
     )
     req = _request([{"role": "system", "content": system}, {"role": "user", "content": facts}], json_mode=False)
     r = httpx.post(req["url"], headers=req["headers"], json=req["body"], timeout=45, verify=_verify())

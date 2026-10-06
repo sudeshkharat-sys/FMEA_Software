@@ -372,35 +372,66 @@ def patch_task(task_id: int, p: TaskPatch, x_user_id: Optional[int] = Header(Non
     return {"ok": True, "translated": translated}
 
 
+PRIO_RANK = {"High": 0, "Medium": 1, "Low": 2}
+
+
 def _facts_and_fallback(c, people, today):
-    """Plain-text facts for the LLM plus a rule-based English summary used when AI is off or fails."""
-    facts, lines = [f"Today: {today}"], []
-    tot = done = blocked = overdue = 0
-    blockers, late, active = [], [], []
+    """Plain-text facts for the LLM plus a rule-based English summary used when AI is off or fails.
+    Order everywhere: finished-everything people first, then ongoing work, then the rest; High priority first."""
+    facts, finished = [f"Today: {today}"], []
+    tot = done = overdue = 0
+    ongoing, remaining, blockers, late = [], [], [], []
+    multi = len(people) > 1
     for p in people:
-        tasks = c.execute("SELECT * FROM tasks WHERE employee_id=? ORDER BY deadline", (p["id"],)).fetchall()
-        facts.append(f"\n{p['name']} ({p['position'] or 'team member'}): {len(tasks)} tasks")
+        tasks = [dict(t) for t in c.execute("SELECT * FROM tasks WHERE employee_id=?", (p["id"],))]
+        tasks.sort(key=lambda t: (PRIO_RANK.get(t["priority"], 1), t["deadline"] or "9999"))
+        n_done = sum(t["status"] == "Done" for t in tasks)
+        all_done = bool(tasks) and n_done == len(tasks)
+        facts.append(f"\n{p['name']} ({p['position'] or 'team member'}): {len(tasks)} tasks, {n_done} done"
+                     + (" -> HAS COMPLETED ALL TASKS" if all_done else ""))
+        if all_done:
+            finished.append(p["name"])
+        for grp, label in (("In Progress", "ONGOING"), ("Open", "REMAINING"), ("Done", "COMPLETED")):
+            sel = [t for t in tasks if (t["status"] == "Done") == (grp == "Done") and (grp != "In Progress" or t["status"] == "In Progress")
+                   and (grp != "Open" or t["status"] in ("To Do", "Blocked"))]
+            for t in sel:
+                od = bool(t["deadline"]) and t["deadline"] < today and t["status"] != "Done"
+                facts.append(f"- [{label}] [{t['priority']} priority] {t['title']} | {t['status']} | {t['progress']}% | due {t['deadline'] or 'n/a'}"
+                             + (" | OVERDUE" if od else "") + (f" | blocker: {t['blocker']}" if t["blocker"] else "")
+                             + (f" | remarks: {t['remarks']}" if t["remarks"] else ""))
+        who = f"{p['name']}: " if multi else ""
         for t in tasks:
             od = bool(t["deadline"]) and t["deadline"] < today and t["status"] != "Done"
-            facts.append(f"- {t['title']} | {t['status']} | {t['progress']}% | due {t['deadline'] or 'n/a'}"
-                         + (" | OVERDUE" if od else "") + (f" | blocker: {t['blocker']}" if t["blocker"] else "")
-                         + (f" | remarks: {t['remarks']}" if t["remarks"] else ""))
-            tot += 1; done += t["status"] == "Done"; blocked += t["status"] == "Blocked"; overdue += od
-            who = f"{p['name']}: " if len(people) > 1 else ""
-            if t["blocker"] and t["status"] != "Done":
-                blockers.append(f"{who}{t['title']} - {t['blocker']}")
-            if od:
-                late.append(f"{who}{t['title']} (due {t['deadline']})")
+            tot += 1; done += t["status"] == "Done"; overdue += od
+            if t["status"] == "Done":
+                continue
+            r = PRIO_RANK.get(t["priority"], 1)
+            line = f"{who}{t['title']} [{t['priority']}]"
             if t["status"] == "In Progress":
-                active.append(f"{who}{t['title']} ({t['progress']}%)")
+                ongoing.append((r, f"{line} ({t['progress']}%)"))
+            else:
+                remaining.append((r, f"{line} ({t['status']})"))
+            if t["blocker"]:
+                blockers.append((r, f"{who}{t['title']} [{t['priority']}] - {t['blocker']}"))
+            if od:
+                late.append((r, f"{who}{t['title']} [{t['priority']}] (due {t['deadline']})"))
     if not tot:
         return "\n".join(facts), "• No tasks yet."
-    lines.append(f"• {done} of {tot} tasks done ({round(100 * done / tot)}%); {tot - done} still open.")
-    lines.append("• In progress: " + ("; ".join(active) if active else "nothing right now") + ".")
-    lines.append("• Blockers: " + ("; ".join(blockers) if blockers else "none reported") + ".")
-    lines.append("• Overdue: " + ("; ".join(late) if late else "none") + ".")
-    if blocked:
-        lines.append(f"• {blocked} task(s) marked Blocked - needs attention.")
+    ongoing, remaining, blockers, late = ([x for _, x in sorted(g, key=lambda i: i[0])] for g in (ongoing, remaining, blockers, late))
+    lines = []
+    if finished:
+        lines.append(("• " + ", ".join(finished) + (" have" if len(finished) > 1 else " has") + " completed all tasks.")
+                     if multi else "• Has completed all tasks.")
+    if not multi and finished:
+        return "\n".join(facts), "\n".join(lines)
+    lines.append("• Ongoing (high priority first): " + ("; ".join(ongoing) if ongoing else "nothing in progress right now") + ".")
+    if remaining:
+        lines.append("• Remaining (high priority first): " + "; ".join(remaining) + ".")
+    if blockers:
+        lines.append("• Blockers: " + "; ".join(blockers) + ".")
+    if late:
+        lines.append("• Overdue: " + "; ".join(late) + ".")
+    lines.append(f"• Overall: {done} of {tot} tasks done ({round(100 * done / tot)}%).")
     return "\n".join(facts), "\n".join(lines)
 
 
