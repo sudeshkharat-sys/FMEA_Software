@@ -93,7 +93,7 @@
   .qbox { padding:14px 22px; border-top:1px solid var(--line); background:var(--raise); }
   .qbox textarea { width:100%; box-sizing:border-box; border:1px solid var(--line2); background:var(--card); color:var(--txt); border-radius:12px; padding:12px 14px; font:inherit; resize:vertical; }
   .qbox .qrow { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
-  .rbtn { display:block; width:100%; text-align:left; background:transparent; border:1px dashed var(--line2); border-radius:8px; padding:7px 10px; cursor:pointer; color:var(--txt); font:inherit; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rbtn { display:block; width:100%; text-align:left; background:transparent; border:1px dashed var(--line2); border-radius:8px; padding:7px 10px; cursor:pointer; color:var(--txt); font:inherit; white-space:normal; word-break:break-word; line-height:1.4; }
   .rbtn:hover { border-color:var(--ink); } .rbtn.none { color:var(--faint); font-style:italic; }
   .rbtn .n { float:right; margin-left:8px; font-size:11px; font-weight:700; background:var(--fill); border-radius:20px; padding:1px 7px; }
   .thread { display:flex; flex-direction:column; gap:10px; } .rmk { background:var(--raise); border:1px solid var(--line); border-radius:12px; padding:9px 12px; }
@@ -113,7 +113,9 @@
   td { border-top:1px solid var(--line); padding:0; vertical-align:middle; }
   tbody tr:first-child td { border-top:0; } tbody tr:hover td { background:var(--raise); }
   .ro { padding:9px 8px; }
-  td input:not([type=range]), td select { width:100%; border:0; background:transparent; padding:10px 8px; border-radius:0; }
+  td input:not([type=range]), td select, td textarea.grow { width:100%; border:0; background:transparent; padding:10px 8px; border-radius:0; }
+  td textarea.grow { font:inherit; color:inherit; resize:none; overflow:hidden; display:block; line-height:1.4; box-sizing:border-box; }
+  td textarea.grow:focus { outline:2px solid var(--ink); outline-offset:-2px; background:var(--card); border-radius:8px; }
   td input:focus, td select:focus { outline:2px solid var(--ink); outline-offset:-2px; background:var(--card); border-radius:8px; }
   td select { font-weight:600; cursor:pointer; }
   select[data-f=status] { border-radius:20px; padding:5px 10px; margin:6px; width:calc(100% - 12px); border:1px solid var(--line2); }
@@ -469,12 +471,12 @@ async function renderSheet(empId) {
     <div class="sheetwrap"><table><thead><tr><th style="width:24%">Task</th><th>Priority</th><th>Deadline</th><th>Status</th><th>Progress</th><th style="width:20%">Blocker</th><th style="width:20%">Remarks (thread)</th>${isM ? "<th></th>" : ""}</tr></thead>
     <tbody>${tasks.map(t => `
       <tr data-id="${t.id}" class="${t.overdue ? "overdue" : ""} ${t.status === "Done" ? "done" : ""}">
-        <td>${isM ? `<input data-f="title" value="${esc(t.title)}" title="${esc(t.title_orig)}">` : `<div class="ro" title="${esc(t.title_orig)}"><b>${esc(t.title)}</b></div>`}</td>
+        <td>${isM ? `<textarea class="grow" rows="1" data-f="title" title="${esc(t.title_orig)}">${esc(t.title)}</textarea>` : `<div class="ro" title="${esc(t.title_orig)}"><b>${esc(t.title)}</b></div>`}</td>
         <td>${isM ? `<select data-f="priority" data-v="${t.priority}">${sel(cfg.priorities, t.priority)}</select>` : `<div class="ro">${t.priority}</div>`}</td>
         <td>${isM ? `<div class="dl ${t.deadline ? "" : "empty"}"><input type="date" data-f="deadline" value="${t.deadline || ""}"></div>` : (t.deadline ? `<div class="ro">${t.deadline}</div>` : `<div class="ro nodl">No deadline</div>`)}</td>
         <td><select data-f="status" data-v="${t.status}">${sel(cfg.statuses, t.status)}</select></td>
         <td><div class="prog"><input type="range" min="0" max="100" step="5" data-f="progress" value="${t.progress}" style="accent-color:${grade(t.progress)}"><span>${t.progress}%</span></div></td>
-        <td><input data-f="blocker" value="${esc(t.blocker)}" placeholder="What is stopping this task?" title="${esc(t.blocker_orig)}"></td>
+        <td><textarea class="grow" rows="1" data-f="blocker" placeholder="What is stopping this task?" title="${esc(t.blocker_orig)}">${esc(t.blocker)}</textarea></td>
         <td><button class="rbtn ${t.remarks ? "" : "none"}" data-thread="${t.id}" title="Open remark thread">${t.remarks ? esc(t.remarks) : "＋ Add remark"}</button></td>
         ${isM ? `<td class="ro"><button class="iconbtn" data-del title="Delete task">✕</button></td>` : ""}
       </tr>`).join("") || `<tr><td colspan="8" class="empty">No tasks yet${isM ? " — add the first one below" : ""}</td></tr>`}
@@ -484,6 +486,8 @@ async function renderSheet(empId) {
     </tbody></table></div>
     <p class="hint">Click any cell to edit — it saves automatically. Type in Hindi, Marathi, English or Hinglish. Spelling is corrected and it is always stored in English. Hover a cell to see what was originally typed. Use Translate (top) to read in another language.</p>`;
 
+  const fit = el => { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; };
+  document.querySelectorAll("textarea.grow").forEach(el => { fit(el); el.oninput = () => fit(el); el.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); el.blur(); } }; });
   $("#sumOne").onclick = () => summarize(empId);
   if ($("#backEn")) $("#backEn").onclick = () => { setLang("en"); render(); };
   document.querySelectorAll("tbody tr[data-id]").forEach(row => {
